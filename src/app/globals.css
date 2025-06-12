@@ -1,0 +1,480 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Routiq Brand Colors - corrected to match brand guidelines */
+    --routiq-core: 26 28 18; /* #1a1c12 - deep green-black */
+    --routiq-blackberry: 71 36 36; /* #472424 - dark maroon */
+    --routiq-prompt: 125 49 45; /* #7d312d - energetic red-brown */
+    --routiq-cloud: 123 162 224; /* #7ba2e0 - airy sky blue */
+    --routiq-energy: 237 237 235; /* #ededeb - soft grey (highlight only) */
+    
+    /* Updated theme colors using correct brand palette */
+    --background: 255 255 255;
+    --foreground: 26 28 18;
+    --card: 255 255 255;
+    --card-foreground: 26 28 18;
+    --popover: 255 255 255;
+    --popover-foreground: 26 28 18;
+    --primary: 26 28 18;
+    --primary-foreground: 255 255 255;
+    --secondary: 237 237 235;
+    --secondary-foreground: 26 28 18;
+    --muted: 237 237 235;
+    --muted-foreground: 71 36 36;
+    --accent: 123 162 224;
+    --accent-foreground: 255 255 255;
+    --destructive: 125 49 45;
+    --destructive-foreground: 255 255 255;
+    --border: 237 237 235;
+    --input: 237 237 235;
+    --ring: 123 162 224;
+    --chart-1: 123 162 224;
+    --chart-2: 125 49 45;
+    --chart-3: 71 36 36;
+    --chart-4: 26 28 18;
+    --chart-5: 237 237 235;
+    --radius: 0.75rem;
+  }
+  
+  .dark {
+    --background: 26 28 18;
+    --foreground: 237 237 235;
+    --card: 26 28 18;
+    --card-foreground: 237 237 235;
+    --popover: 26 28 18;
+    --popover-foreground: 237 237 235;
+    --primary: 237 237 235;
+    --primary-foreground: 26 28 18;
+    --secondary: 71 36 36;
+    --secondary-foreground: 237 237 235;
+    --muted: 71 36 36;
+    --muted-foreground: 237 237 235;
+    --accent: 123 162 224;
+    --accent-foreground: 26 28 18;
+    --destructive: 125 49 45;
+    --destructive-foreground: 237 237 235;
+    --border: 71 36 36;
+    --input: 71 36 36;
+    --ring: 123 162 224;
+    --chart-1: 123 162 224;
+    --chart-2: 125 49 45;
+    --chart-3: 71 36 36;
+    --chart-4: 237 237 235;
+    --chart-5: 26 28 18;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  *:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(var(--routiq-cloud) / 0.3);
+  }
+  
+  *:focus-visible {
+    outline: 2px solid rgb(var(--routiq-cloud));
+    outline-offset: 2px;
+  }
+  
+  html {
+    /* Prevent overscroll bounce effect that shows yellow */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-light;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent overscroll bounce */
+    overscroll-behavior: none;
+    /* Use white background per brand guidelines */
+    background-color: white;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Remove default browser outlines */
+button:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgb(var(--routiq-cloud) / 0.3) !important;
+}
+
+/* Prevent overscroll glow on webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(var(--routiq-energy));
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--routiq-blackberry) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--routiq-blackberry) / 0.5);
+}
+
+/* Routiq Brand Utilities */
+@layer utilities {
+  .text-routiq-core { color: rgb(var(--routiq-core)); }
+  .text-routiq-blackberry { color: rgb(var(--routiq-blackberry)); }
+  .text-routiq-energy { color: rgb(var(--routiq-energy)); }
+  .text-routiq-prompt { color: rgb(var(--routiq-prompt)); }
+  .text-routiq-cloud { color: rgb(var(--routiq-cloud)); }
+  
+  .bg-routiq-core { background-color: rgb(var(--routiq-core)); }
+  .bg-routiq-blackberry { background-color: rgb(var(--routiq-blackberry)); }
+  .bg-routiq-energy { background-color: rgb(var(--routiq-energy)); }
+  .bg-routiq-prompt { background-color: rgb(var(--routiq-prompt)); }
+  .bg-routiq-cloud { background-color: rgb(var(--routiq-cloud)); }
+  
+  .border-routiq-core { border-color: rgb(var(--routiq-core)); }
+  .border-routiq-blackberry { border-color: rgb(var(--routiq-blackberry)); }
+  .border-routiq-energy { border-color: rgb(var(--routiq-energy)); }
+  .border-routiq-prompt { border-color: rgb(var(--routiq-prompt)); }
+  .border-routiq-cloud { border-color: rgb(var(--routiq-cloud)); }
+}
+
+/* Magic UI Animations */
+@keyframes gradient {
+  to {
+    background-position: var(--bg-size) 0;
+  }
+}
+
+@keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+  }
+}
+
+@keyframes spin-around {
+  0% {
+    transform: translateZ(0) rotate(0);
+  }
+  15%, 35% {
+    transform: translateZ(0) rotate(90deg);
+  }
+  65%, 85% {
+    transform: translateZ(0) rotate(270deg);
+  }
+  100% {
+    transform: translateZ(0) rotate(360deg);
+  }
+}
+
+@keyframes slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+  }
+}
+
+/* Brand-specific animations */
+@keyframes routiq-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes routiq-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes routiq-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes routiq-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-routiq-pulse {
+  animation: routiq-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-routiq-float {
+  animation: routiq-float 3s ease-in-out infinite;
+}
+
+.animate-routiq-spin {
+  animation: routiq-spin 1s linear infinite;
+}
+
+.animate-routiq-fade-in {
+  animation: routiq-fade-in 0.6s ease-out;
+}
+
+/* Tremor Chart Tooltip Fixes */
+[data-tooltip-content] {
+  background-color: white !important;
+  border: 1px solid rgb(var(--routiq-energy)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  color: rgb(var(--routiq-core)) !important;
+  opacity: 1 !important;
+  z-index: 50 !important;
+}
+
+/* Tremor specific tooltip classes */
+.tremor-Tooltip-content,
+[role="tooltip"],
+div[role="tooltip"] {
+  background-color: white !important;
+  border: 1px solid rgb(var(--routiq-energy)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  color: rgb(var(--routiq-core)) !important;
+  opacity: 1 !important;
+  z-index: 50 !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Additional tooltip selectors for Tremor */
+[data-testid*="tooltip"],
+.recharts-tooltip-wrapper,
+.recharts-default-tooltip {
+  background-color: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  opacity: 1 !important;
+  z-index: 999 !important;
+}
+
+/* Fix tooltip color indicators to match chart colors */
+.recharts-tooltip-wrapper .recharts-tooltip-item-list .recharts-tooltip-item[data-key="phone"] .recharts-tooltip-item-separator::before,
+.tremor-Tooltip-content [data-tremor-color="blue"]::before {
+  background-color: #3b82f6 !important;
+}
+
+.recharts-tooltip-wrapper .recharts-tooltip-item-list .recharts-tooltip-item[data-key="chat"] .recharts-tooltip-item-separator::before,
+.tremor-Tooltip-content [data-tremor-color="emerald"]::before {
+  background-color: #10b981 !important;
+}
+
+.recharts-tooltip-wrapper .recharts-tooltip-item-list .recharts-tooltip-item[data-key="email"] .recharts-tooltip-item-separator::before,
+.tremor-Tooltip-content [data-tremor-color="violet"]::before {
+  background-color: #8b5cf6 !important;
+}
+
+/* Alternative tooltip color fix - target all color squares in tooltips */
+.recharts-tooltip-item .recharts-tooltip-item-separator + span,
+.tremor-Tooltip-content .tremor-Tooltip-item::before {
+  color: inherit !important;
+}
+
+/* Force tooltip item colors */
+.recharts-tooltip-item[style*="color: var(--tremor-color-blue)"] {
+  color: #3b82f6 !important;
+}
+
+.recharts-tooltip-item[style*="color: var(--tremor-color-emerald)"] {
+  color: #10b981 !important;
+}
+
+.recharts-tooltip-item[style*="color: var(--tremor-color-violet)"] {
+  color: #8b5cf6 !important;
+}
+
+/* Chart container fixes */
+.tremor-Chart {
+  overflow: visible !important;
+}
+
+/* Chart legend spacing */
+.tremor-Legend {
+  margin-top: 8px !important;
+}
+
+/* Tremor Chart Fixes - Force Bar Colors */
+.recharts-bar[fill="var(--tremor-color-blue)"] {
+  fill: #3b82f6 !important;
+}
+
+.recharts-bar[fill="var(--tremor-color-emerald)"] {
+  fill: #10b981 !important;
+}
+
+.recharts-bar[fill="var(--tremor-color-violet)"] {
+  fill: #8b5cf6 !important;
+}
+
+/* Alternative selectors for Tremor bars */
+.recharts-layer.recharts-bar.fill-blue {
+  fill: #3b82f6 !important;
+}
+
+.recharts-layer.recharts-bar.fill-emerald {
+  fill: #10b981 !important;
+}
+
+.recharts-layer.recharts-bar.fill-violet {
+  fill: #8b5cf6 !important;
+}
+
+/* Force colors on all Recharts bar rectangles */
+.recharts-bar-rectangle[fill] {
+  opacity: 1 !important;
+}
+
+/* Target Tailwind fill classes on SVG elements */
+.fill-blue-500 rect,
+.recharts-layer.fill-blue-500 rect {
+  fill: #3b82f6 !important;
+}
+
+.fill-emerald-500 rect,
+.recharts-layer.fill-emerald-500 rect {
+  fill: #10b981 !important;
+}
+
+.fill-violet-500 rect,
+.recharts-layer.fill-violet-500 rect {
+  fill: #8b5cf6 !important;
+}
+
+/* Direct targeting of recharts bars with specific colors */
+.recharts-layer.recharts-bar.fill-blue-500 rect,
+.recharts-layer.recharts-bar.fill-emerald-500 rect,
+.recharts-layer.recharts-bar.fill-violet-500 rect {
+  opacity: 1 !important;
+}
+
+.recharts-layer.recharts-bar.fill-blue-500 .recharts-bar-rectangle {
+  fill: #3b82f6 !important;
+}
+
+.recharts-layer.recharts-bar.fill-emerald-500 .recharts-bar-rectangle {
+  fill: #10b981 !important;
+}
+
+.recharts-layer.recharts-bar.fill-violet-500 .recharts-bar-rectangle {
+  fill: #8b5cf6 !important;
+}
+
+/* Most aggressive selectors - target all rect elements in bar layers */
+.recharts-layer.recharts-bar.fill-blue-500 rect {
+  fill: #3b82f6 !important;
+}
+
+.recharts-layer.recharts-bar.fill-emerald-500 rect {
+  fill: #10b981 !important;
+}
+
+.recharts-layer.recharts-bar.fill-violet-500 rect {
+  fill: #8b5cf6 !important;
+}
+
+/* More comprehensive tooltip color fixes */
+.recharts-tooltip-wrapper .recharts-tooltip-content,
+.recharts-default-tooltip,
+.tremor-Tooltip-wrapper,
+.tremor-Tooltip-content {
+  background-color: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  opacity: 1 !important;
+  z-index: 999 !important;
+  padding: 8px 12px !important;
+}
+
+/* Target the specific tooltip item colors by data attributes */
+.recharts-tooltip-item-list .recharts-tooltip-item:has([data-key="phone"]) .recharts-tooltip-item-name,
+.recharts-tooltip-item[data-key="phone"] {
+  color: #3b82f6 !important;
+}
+
+.recharts-tooltip-item-list .recharts-tooltip-item:has([data-key="chat"]) .recharts-tooltip-item-name,
+.recharts-tooltip-item[data-key="chat"] {
+  color: #10b981 !important;
+}
+
+.recharts-tooltip-item-list .recharts-tooltip-item:has([data-key="email"]) .recharts-tooltip-item-name,
+.recharts-tooltip-item[data-key="email"] {
+  color: #8b5cf6 !important;
+}
+
+/* Force tooltip indicator squares/circles */
+.recharts-tooltip-item::before,
+.recharts-tooltip-item .recharts-tooltip-item-indicator {
+  background-color: currentColor !important;
+  border-color: currentColor !important;
+}
+
+/* Target by payload key for phone/chat/email */
+.recharts-tooltip-item:nth-child(1) {
+  color: #3b82f6 !important; /* phone - blue */
+}
+
+.recharts-tooltip-item:nth-child(2) {
+  color: #10b981 !important; /* chat - emerald */
+}
+
+.recharts-tooltip-item:nth-child(3) {
+  color: #8b5cf6 !important; /* email - violet */
+}
+
+/* Most aggressive approach - target all tooltip text elements */
+.recharts-tooltip-wrapper [role="tooltip"] *,
+.recharts-tooltip-content * {
+  font-size: 12px !important;
+}
+
+/* Override any Tremor color variables in tooltips */
+.recharts-tooltip-wrapper .recharts-tooltip-content [style*="--tremor-color-blue"] {
+  color: #3b82f6 !important;
+}
+
+.recharts-tooltip-wrapper .recharts-tooltip-content [style*="--tremor-color-emerald"] {
+  color: #10b981 !important;
+}
+
+.recharts-tooltip-wrapper .recharts-tooltip-content [style*="--tremor-color-violet"] {
+  color: #8b5cf6 !important;
+}

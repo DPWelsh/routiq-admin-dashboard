@@ -1,0 +1,13 @@
+# API Configuration
+NEXT_PUBLIC_API_URL=https://routiq-backend-prod.up.railway.app
+
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dG9wcy1zdW5iaXJkLTg2LmNsZXJrLmFjY291bnRzLmRldiQ
+CLERK_SECRET_KEY=sk_test_h8HoRJR8lxecolGZB3jx4XOx4dn4zdD23UKMveMRs2
+
+# Organization ID for testing (has 47 active patients)
+NEXT_PUBLIC_DEFAULT_ORG_ID=org_2xwHiNrj68eaRUlX10anlXGvzX7
+
+# Development
+NODE_ENV=development
+NEXT_PUBLIC_ENABLE_DEBUG=true 

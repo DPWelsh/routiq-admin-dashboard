@@ -1,0 +1,24 @@
+{
+  "name": "Routiq Hub Dashboard",
+  "short_name": "Routiq Hub",
+  "description": "AI-powered conversation analytics and patient engagement dashboard",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#7ba2e0",
+  "background_color": "#ffffff",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait"
+} 
