@@ -239,8 +239,8 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
 
         // Filter to only conversations with phone numbers and transform to expected format
         const phoneConversations = conversations
-          .filter(conv => conv.patient?.phone)
-          .map(conv => {
+          .filter((conv: any) => conv.patient?.phone)
+          .map((conv: any) => {
             const latestMessage = conv.messages[0] // First message due to desc order by timestamp
             
             // Log for debugging timestamp issues
