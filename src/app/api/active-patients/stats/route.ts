@@ -134,7 +134,7 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
     ])
 
     // Calculate average conversations per patient
-    const totalConversations = averageConversations.reduce((sum: number, patient: any) => 
+    const totalConversations = averageConversations.reduce((sum: number, patient: { _count: { conversations: number } }) => 
       sum + patient._count.conversations, 0
     )
     const avgConversationsPerPatient = activePatients > 0 ? 

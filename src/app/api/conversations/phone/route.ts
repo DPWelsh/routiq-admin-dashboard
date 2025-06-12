@@ -170,11 +170,11 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
               last_message_content: conversation.messages.length > 0 ? conversation.messages[conversation.messages.length - 1].content : '',
               last_message_sender: conversation.messages.length > 0 ? conversation.messages[conversation.messages.length - 1].senderType : 'system',
               latest_conversation_date: conversation.updatedAt,
-              bot_messages: conversation.messages.filter(m => m.senderType === 'agent').length,
-              user_messages: conversation.messages.filter(m => m.senderType === 'user').length,
-              system_messages: conversation.messages.filter(m => m.senderType === 'system').length
+              bot_messages: conversation.messages.filter((m: { senderType: string }) => m.senderType === 'agent').length,
+              user_messages: conversation.messages.filter((m: { senderType: string }) => m.senderType === 'user').length,
+              system_messages: conversation.messages.filter((m: { senderType: string }) => m.senderType === 'system').length
             },
-            messages: conversation.messages.map(msg => ({
+            messages: conversation.messages.map((msg: { id: string; content: string; senderType: string; timestamp?: Date; createdAt: Date }) => ({
               id: msg.id,
               content: msg.content,
               sender_type: msg.senderType,
