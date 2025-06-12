@@ -239,7 +239,9 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
 
         // Filter to only conversations with phone numbers and transform to expected format
         const phoneConversations = conversations
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((conv: any) => conv.patient?.phone)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((conv: any) => {
             const latestMessage = conv.messages[0] // First message due to desc order by timestamp
             

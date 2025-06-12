@@ -25,7 +25,8 @@ export async function GET() {
     })
     
     // Transform to match the expected format
-    const transformedConversations = conversations.map(conv => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const transformedConversations = conversations.map((conv: any) => {
       const messages = conv.messages || []
       const firstMessage = messages[0]
       const lastMessage = messages[messages.length - 1]
