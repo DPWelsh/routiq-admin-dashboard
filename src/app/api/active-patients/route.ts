@@ -11,20 +11,21 @@
 
 import { NextRequest } from 'next/server'
 import { withClerkOrganization } from '@/lib/auth/clerk-request-context'
+import { logger, logApiRequest, logApiResponse } from '@/lib/utils/logger'
 
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-v10-production.up.railway.app'
 
 // Proxy to backend API with Clerk organization context
 export const GET = withClerkOrganization(async (context, request: NextRequest) => {
+  const startTime = logApiRequest(request, 'active-patients-proxy')
+  
   try {
     const { searchParams } = new URL(request.url)
     const filter = searchParams.get('filter') || 'all'
     const limit = searchParams.get('limit')
     const page = searchParams.get('page')
 
-    // Audit log this patient data access
-    console.log(`[AUDIT] Active patients proxy request`, {
-      timestamp: new Date().toISOString(),
+    logger.info('Active patients proxy request', {
       userId: context.userId,
       organizationId: context.organizationId,
       userRole: context.organizationRole,
@@ -38,8 +39,13 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
     if (limit) backendUrl.searchParams.set('limit', limit)
     if (page) backendUrl.searchParams.set('page', page)
 
-    console.log(`[DEBUG] Proxying to backend: ${backendUrl.toString()}`)
+    logger.cliniko('Proxying to backend', {
+      backendUrl: backendUrl.toString(),
+      organizationId: context.organizationId
+    })
 
+    const backendStartTime = Date.now()
+    
     // Proxy request to backend API
     const backendResponse = await fetch(backendUrl.toString(), {
       method: 'GET',
@@ -53,22 +59,30 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
       }
     })
 
+    const backendDuration = Date.now() - backendStartTime
+    
+    logger.cliniko('Backend response', {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      duration_ms: backendDuration,
+      organizationId: context.organizationId
+    })
+
     if (!backendResponse.ok) {
       throw new Error(`Backend API error: ${backendResponse.status} ${backendResponse.statusText}`)
     }
 
     const data = await backendResponse.json()
 
-    // Audit log successful access
-    console.log(`[AUDIT] Active patients proxy successful`, {
-      timestamp: new Date().toISOString(),
+    logger.info('Active patients proxy successful', {
       userId: context.userId,
       organizationId: context.organizationId,
       backendStatus: backendResponse.status,
-      dataLength: Array.isArray(data?.active_patients) ? data.active_patients.length : 0
+      dataLength: Array.isArray(data?.active_patients) ? data.active_patients.length : 0,
+      totalDuration_ms: Date.now() - startTime
     })
 
-    return new Response(
+    const response = new Response(
       JSON.stringify(data),
       {
         status: backendResponse.status,
@@ -78,19 +92,19 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
         }
       }
     )
+    
+    logApiResponse(request, response, startTime, 'active-patients-proxy')
+    return response
 
   } catch (error) {
-    // Audit log the error
-    console.error(`[AUDIT] Active patients access error`, {
-      timestamp: new Date().toISOString(),
+    logger.error('Active patients access error', error, {
       userId: context.userId,
       organizationId: context.organizationId,
       userRole: context.organizationRole,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      duration_ms: Date.now() - startTime
     })
 
-    return new Response(
+    const response = new Response(
       JSON.stringify({
         success: false,
         error: 'Failed to fetch active patients',
@@ -101,6 +115,9 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
         headers: { 'content-type': 'application/json' }
       }
     )
+    
+    logApiResponse(request, response, startTime, 'active-patients-proxy')
+    return response
   }
 })
 
