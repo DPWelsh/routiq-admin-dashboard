@@ -1,6 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
-import { logger } from '@/lib/utils/logger'
 
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
@@ -12,33 +11,25 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   const { pathname } = req.nextUrl
-  const startTime = Date.now()
   
-  logger.middleware('Processing request', {
-    pathname,
-    method: req.method,
-    userAgent: req.headers.get('user-agent'),
-    origin: req.headers.get('origin')
-  })
+  console.log(`🔍 Middleware: ${req.method} ${pathname}`)
   
   // Allow public routes
   if (isPublicRoute(req)) {
-    logger.middleware('Public route - allowing access', { pathname })
+    console.log(`✅ Public route: ${pathname}`)
     return NextResponse.next()
   }
 
   try {
-    // Get basic Clerk auth (without complex org logic)
-    const { userId } = await auth()
+    // Get Clerk auth with organization context
+    const { userId, orgId, orgRole, orgSlug } = await auth()
     
-    logger.auth('Clerk auth result', {
-      userId: userId ? 'present' : 'missing',
-      pathname
-    })
+    console.log(`🔐 Auth result: ${userId ? 'authenticated' : 'not authenticated'} for ${pathname}`)
+    console.log(`🏢 Org context: ${orgId ? 'present' : 'missing'} for ${pathname}`)
     
     // Require authentication
     if (!userId) {
-      logger.auth('Authentication required - no user ID', { pathname })
+      console.log(`❌ No user ID for ${pathname}`)
       
       if (pathname.startsWith('/api/')) {
         return new Response(
@@ -49,15 +40,20 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(new URL('/sign-in', req.url))
     }
 
-    // For API routes, just pass the user ID (let routes handle org context)
+    // For API routes, set auth headers including organization context
     if (pathname.startsWith('/api/')) {
-      logger.middleware('API route - setting auth headers', {
-        pathname,
-        hasUserId: !!userId
-      })
+      console.log(`🔄 Setting auth headers for API route: ${pathname}`)
+      console.log(`📋 Headers: userId=${!!userId}, orgId=${!!orgId}, role=${orgRole}`)
       
       const requestHeaders = new Headers(req.headers)
       requestHeaders.set('x-clerk-user-id', userId)
+      
+      // Set organization headers if available
+      if (orgId) {
+        requestHeaders.set('x-clerk-org-id', orgId)
+        requestHeaders.set('x-clerk-org-role', orgRole || '')
+        requestHeaders.set('x-clerk-org-slug', orgSlug || '')
+      }
       
       return NextResponse.next({
         request: {
@@ -66,27 +62,18 @@ export default clerkMiddleware(async (auth, req) => {
       })
     }
 
-    const duration = Date.now() - startTime
-    logger.middleware('Request processed successfully', {
-      pathname,
-      duration_ms: duration
-    })
-
+    console.log(`✅ Request processed: ${pathname}`)
     return NextResponse.next()
     
   } catch (error) {
-    const duration = Date.now() - startTime
-    logger.error('Middleware error', error, {
-      pathname,
-      method: req.method,
-      duration_ms: duration
-    })
+    console.error(`🔴 Middleware error for ${pathname}:`, error)
     
     // Return a proper error response instead of throwing
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        code: 'MIDDLEWARE_ERROR'
+        code: 'MIDDLEWARE_ERROR',
+        details: error instanceof Error ? error.message : 'Unknown error'
       }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     )
