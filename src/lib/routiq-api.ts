@@ -16,8 +16,8 @@ export const ORGANIZATIONS = {
 export interface SyncTriggerResponse {
   success: boolean;
   message: string;
-  sync_id: string;
-  estimated_duration: string;
+  sync_id?: string;
+  organization_id: string;
 }
 
 export interface SyncStatusResponse {
@@ -189,6 +189,37 @@ export interface SyncHistoryResponse {
     patients_processed?: number;
     errors?: string[];
   }>;
+}
+
+// Add service configuration interfaces
+export interface ServiceConfig {
+  organization_id: string;
+  services: Array<{
+    id: string;
+    service_name: string;
+    is_active: boolean;
+    sync_enabled: boolean;
+    last_sync_at: string | null;
+    service_config: {
+      region?: string;
+      api_url?: string;
+      features?: string[];
+      description?: string;
+    };
+  }>;
+  total_services: number;
+  active_services: number;
+  available_integrations?: string[];
+}
+
+export interface ClinikoConnectionTest {
+  success: boolean;
+  connected: boolean;
+  total_patients_available?: number;
+  practitioners_count?: number;
+  api_url?: string;
+  message?: string;
+  error?: string;
 }
 
 export class RoutiqAPI {
@@ -537,6 +568,52 @@ export class RoutiqAPI {
     }
 
     return features;
+  }
+
+  /**
+   * Check organization service configuration
+   */
+  async getServiceConfig(organizationId: string): Promise<ServiceConfig> {
+    return this.request(`/api/debug/organization-services`);
+  }
+
+  /**
+   * Test Cliniko connection for organization
+   */
+  async testClinikoConnection(organizationId: string): Promise<ClinikoConnectionTest> {
+    try {
+      const data = await this.request(`/api/cliniko/test-connection/${organizationId}`);
+      const response = data as {
+        success?: boolean;
+        total_patients_available?: number;
+        practitioners_count?: number;
+        api_url?: string;
+        message?: string;
+        error?: string;
+      };
+      
+      if (response.success) {
+        return {
+          success: true,
+          connected: true,
+          total_patients_available: response.total_patients_available,
+          practitioners_count: response.practitioners_count,
+          api_url: response.api_url
+        };
+      }
+      
+      return { 
+        success: false, 
+        connected: false, 
+        error: response.message || response.error || 'Connection test failed' 
+      };
+    } catch (error) {
+      return {
+        success: false, 
+        connected: false, 
+        error: error instanceof Error ? error.message : 'Network error' 
+      };
+    }
   }
 }
 

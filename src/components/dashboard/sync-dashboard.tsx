@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/routiq-api'
 import { formatDistanceToNow } from 'date-fns'
+import { type ServiceConfig, type ClinikoConnectionTest } from '@/lib/routiq-api'
 
 interface SyncDashboardProps {
   organizationId?: string
@@ -37,6 +38,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const [activeSyncId, setActiveSyncId] = useState<string | null>(null)
   const [eventSource, setEventSource] = useState<EventSource | null>(null)
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; level: string }>>([])
+  const [serviceConfig, setServiceConfig] = useState<ServiceConfig | null>(null)
+  const [connectionTest, setConnectionTest] = useState<ClinikoConnectionTest | null>(null)
+  const [isTestingConnection, setIsTestingConnection] = useState(false)
 
   // Query for dashboard data
   const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard } = useQuery({
@@ -159,6 +163,33 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     }
   }
 
+  // Check service configuration on component mount
+  useEffect(() => {
+    if (!orgId) return;
+    
+    const checkServiceConfig = async () => {
+      try {
+        const config = await api.getServiceConfig(orgId)
+        setServiceConfig(config)
+        
+        // If Cliniko is configured, test the connection
+        if (config.available_integrations?.includes('cliniko')) {
+          setIsTestingConnection(true)
+          const test = await api.testClinikoConnection(orgId)
+          setConnectionTest(test)
+          setIsTestingConnection(false)
+        }
+      } catch (error) {
+        console.error('Failed to check service configuration:', error)
+      }
+    }
+
+    checkServiceConfig()
+  }, [orgId])
+
+  const clinikoConfigured = serviceConfig?.available_integrations?.includes('cliniko') || false
+  const clinikoConnected = connectionTest?.connected || false
+
   if (!orgId) {
     return (
       <Card>
@@ -206,6 +237,25 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               Debug Status
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                const response = await fetch('/api/debug/organization-services')
+                const data = await response.json()
+                if (response.ok) {
+                  addLog('info', `Services configured: ${JSON.stringify(data.services)}`)
+                } else {
+                  addLog('error', `Service check failed: ${data.error}`)
+                }
+              } catch (error) {
+                addLog('error', `Service check error: ${error}`)
+              }
+            }}
+          >
+            Check Services
+          </Button>
           {activeSyncId ? (
             <Button
               variant="destructive"
@@ -229,207 +279,322 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
         </div>
       </div>
 
-      {/* Current Sync Progress */}
-      {(dashboardData?.current_sync || progressData) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Current Sync Progress
-              <Badge variant="secondary" className={getStatusColor(progressData?.status || dashboardData?.current_sync?.status || '')}>
-                {progressData?.status || dashboardData?.current_sync?.status}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>{progressData?.current_step || dashboardData?.current_sync?.current_step}</span>
-                <span>{progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage}%</span>
-              </div>
-              <Progress value={progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage || 0} />
+      {/* Service Configuration Status */}
+      <div className="bg-white rounded-lg border p-6">
+        <h2 className="text-xl font-semibold mb-4">Integration Status</h2>
+        
+        <div className="border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium">Cliniko Practice Management</h3>
+            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+              clinikoConfigured ? 
+                (clinikoConnected ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800') : 
+                'bg-red-100 text-red-800'
+            }`}>
+              {clinikoConfigured ? 
+                (clinikoConnected ? '✅ Connected' : '⚠️ Configured but not connected') : 
+                '❌ Not configured'
+              }
             </div>
-            
+          </div>
+          
+          {clinikoConfigured && connectionTest && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <div className="text-muted-foreground">Patients Found</div>
-                <div className="font-semibold">{progressData?.patients_found || dashboardData?.current_sync?.patients_found || 0}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Appointments Found</div>
-                <div className="font-semibold">{progressData?.appointments_found || dashboardData?.current_sync?.appointments_found || 0}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Active Identified</div>
-                <div className="font-semibold">{progressData?.active_patients_identified || dashboardData?.current_sync?.active_patients_identified || 0}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Patients Stored</div>
-                <div className="font-semibold">{progressData?.active_patients_stored || dashboardData?.current_sync?.active_patients_stored || 0}</div>
-              </div>
-            </div>
-
-            {progressData?.errors && progressData.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {progressData.errors.map((error, index) => (
-                    <div key={index}>{error}</div>
-                  ))}
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Statistics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-500" />
-              <div>
-                <div className="text-sm text-muted-foreground">Total Patients</div>
-                <div className="text-2xl font-bold">{dashboardData?.patient_stats.total_patients || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-green-500" />
-              <div>
-                <div className="text-sm text-muted-foreground">Active Patients</div>
-                <div className="text-2xl font-bold">{dashboardData?.patient_stats.active_patients || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-orange-500" />
-              <div>
-                <div className="text-sm text-muted-foreground">With Upcoming</div>
-                <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_upcoming || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-purple-500" />
-              <div>
-                <div className="text-sm text-muted-foreground">With Recent</div>
-                <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_recent || 0}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Sync History */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Sync History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {historyData?.recent_syncs && historyData.recent_syncs.length > 0 ? (
-              <div className="space-y-3">
-                {historyData.recent_syncs.map((sync, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(sync.status)}
-                      <div>
-                        <div className="font-medium">{sync.sync_id}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(sync.started_at), { addSuffix: true })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={sync.status === 'completed' ? 'default' : sync.status === 'failed' ? 'destructive' : 'secondary'}>
-                        {sync.status}
-                      </Badge>
-                      {sync.patients_processed && (
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {sync.patients_processed} patients
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No sync history available</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Live Logs */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Activity Log</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {logs.length > 0 ? (
-                logs.map((log, index) => (
-                  <div key={index} className="flex items-start gap-2 text-sm">
-                    <Badge 
-                      variant={log.level === 'error' ? 'destructive' : log.level === 'warning' ? 'secondary' : 'outline'}
-                      className="text-xs"
-                    >
-                      {log.level}
-                    </Badge>
-                    <div className="flex-1">
-                      <div className="text-muted-foreground text-xs">
-                        {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
-                      </div>
-                      <div>{log.message}</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-muted-foreground">No activity yet</p>
+              {connectionTest.total_patients_available && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Available Patients:</span>
+                  <span className="font-semibold">{connectionTest.total_patients_available.toLocaleString()}</span>
+                </div>
+              )}
+              {connectionTest.practitioners_count && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Practitioners:</span>
+                  <span className="font-semibold">{connectionTest.practitioners_count}</span>
+                </div>
+              )}
+              {connectionTest.api_url && (
+                <div className="flex justify-between col-span-2">
+                  <span className="text-gray-600">API URL:</span>
+                  <span className="font-semibold text-xs">{connectionTest.api_url}</span>
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Last Sync Info */}
-      {dashboardData?.last_sync && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Last Successful Sync</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Completed</div>
-                <div className="font-medium">
-                  {formatDistanceToNow(new Date(dashboardData.last_sync.completed_at), { addSuffix: true })}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Records Processed</div>
-                <div className="font-medium">{dashboardData.last_sync.records_success}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Status</div>
-                <Badge variant="default">{dashboardData.last_sync.status}</Badge>
+          )}
+          
+          {!clinikoConfigured && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <h4 className="font-semibold text-blue-900 mb-2">Cliniko Integration Setup Required</h4>
+              <p className="text-blue-800 text-sm mb-3">
+                Your organization needs Cliniko API credentials configured to sync patient data.
+              </p>
+              <div className="text-sm text-blue-700">
+                <p className="font-medium mb-2">Required steps:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Contact your administrator to set up Cliniko API access</li>
+                  <li>Configure API credentials in the backend system</li>
+                  <li>Verify connection to your Cliniko practice</li>
+                </ul>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+          
+          {clinikoConfigured && !clinikoConnected && connectionTest?.error && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+              <h4 className="font-semibold text-yellow-900 mb-2">Connection Issue</h4>
+              <p className="text-yellow-800 text-sm">
+                Cliniko is configured but connection failed: {connectionTest.error}
+              </p>
+            </div>
+          )}
+          
+          {isTestingConnection && (
+            <div className="flex items-center gap-2 mt-4 text-sm text-gray-600">
+              <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              Testing Cliniko connection...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Only show sync controls if Cliniko is properly configured */}
+      {clinikoConfigured && clinikoConnected ? (
+        <>
+          {/* Current Sync Progress */}
+          {(dashboardData?.current_sync || progressData) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Current Sync Progress
+                  <Badge variant="secondary" className={getStatusColor(progressData?.status || dashboardData?.current_sync?.status || '')}>
+                    {progressData?.status || dashboardData?.current_sync?.status}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>{progressData?.current_step || dashboardData?.current_sync?.current_step}</span>
+                    <span>{progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage}%</span>
+                  </div>
+                  <Progress value={progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage || 0} />
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground">Patients Found</div>
+                    <div className="font-semibold">{progressData?.patients_found || dashboardData?.current_sync?.patients_found || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Appointments Found</div>
+                    <div className="font-semibold">{progressData?.appointments_found || dashboardData?.current_sync?.appointments_found || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Active Identified</div>
+                    <div className="font-semibold">{progressData?.active_patients_identified || dashboardData?.current_sync?.active_patients_identified || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Patients Stored</div>
+                    <div className="font-semibold">{progressData?.active_patients_stored || dashboardData?.current_sync?.active_patients_stored || 0}</div>
+                  </div>
+                </div>
+
+                {progressData?.errors && progressData.errors.length > 0 && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {progressData.errors.map((error, index) => (
+                        <div key={index}>{error}</div>
+                      ))}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Configuration Warning */}
+          {logs.some(log => log.message.includes('Cliniko sync not enabled')) && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <strong>Cliniko Integration Not Configured</strong>
+                  <p>Your organization needs Cliniko API credentials to sync patient data. Contact your administrator to:</p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>Set up Cliniko API access</li>
+                    <li>Configure API credentials in the backend</li>
+                    <li>Enable sync permissions for your organization</li>
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Organization ID: <code className="bg-muted px-1 rounded">{orgId}</code>
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Statistics Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Total Patients</div>
+                    <div className="text-2xl font-bold">{dashboardData?.patient_stats.total_patients || 0}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-green-500" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Active Patients</div>
+                    <div className="text-2xl font-bold">{dashboardData?.patient_stats.active_patients || 0}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-orange-500" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">With Upcoming</div>
+                    <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_upcoming || 0}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">With Recent</div>
+                    <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_recent || 0}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Sync History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Sync History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {historyData?.recent_syncs && historyData.recent_syncs.length > 0 ? (
+                  <div className="space-y-3">
+                    {historyData.recent_syncs.map((sync, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {getStatusIcon(sync.status)}
+                          <div>
+                            <div className="font-medium">{sync.sync_id}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatDistanceToNow(new Date(sync.started_at), { addSuffix: true })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={sync.status === 'completed' ? 'default' : sync.status === 'failed' ? 'destructive' : 'secondary'}>
+                            {sync.status}
+                          </Badge>
+                          {sync.patients_processed && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {sync.patients_processed} patients
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No sync history available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Live Logs */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Live Activity Log</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {logs.length > 0 ? (
+                    logs.map((log, index) => (
+                      <div key={index} className="flex items-start gap-2 text-sm">
+                        <Badge 
+                          variant={log.level === 'error' ? 'destructive' : log.level === 'warning' ? 'secondary' : 'outline'}
+                          className="text-xs"
+                        >
+                          {log.level}
+                        </Badge>
+                        <div className="flex-1">
+                          <div className="text-muted-foreground text-xs">
+                            {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
+                          </div>
+                          <div>{log.message}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No activity yet</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Last Sync Info */}
+          {dashboardData?.last_sync && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Last Successful Sync</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Completed</div>
+                    <div className="font-medium">
+                      {formatDistanceToNow(new Date(dashboardData.last_sync.completed_at), { addSuffix: true })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Records Processed</div>
+                    <div className="font-medium">{dashboardData.last_sync.records_success}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Status</div>
+                    <Badge variant="default">{dashboardData.last_sync.status}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : (
+        <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+          <div className="text-gray-500 mb-2">
+            <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Sync Unavailable</h3>
+          <p className="text-gray-600">
+            Patient data synchronization requires Cliniko integration to be configured first.
+          </p>
+        </div>
       )}
     </div>
   )
