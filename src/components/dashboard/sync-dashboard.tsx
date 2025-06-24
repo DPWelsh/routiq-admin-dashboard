@@ -51,10 +51,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   })
 
   // Query for sync history
-  const { data: historyData } = useQuery({
+  const { data: historyData, refetch: refetchHistory } = useQuery({
     queryKey: ['sync-history', orgId],
     queryFn: () => orgId ? api.getSyncHistory(orgId, 5) : null,
     enabled: !!orgId,
+    staleTime: 5000, // Consider data stale after 5 seconds
   })
 
   // Query for current sync progress
@@ -118,9 +119,16 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       setEventSource(null)
     }
     setActiveSyncId(null)
-    refetchDashboard()
-    queryClient.invalidateQueries({ queryKey: ['sync-history'] })
-  }, [eventSource, refetchDashboard, queryClient])
+    
+    // Add a small delay to ensure backend has processed the completion
+    setTimeout(() => {
+      console.log('Refreshing dashboard and history after sync completion...')
+      refetchDashboard()
+      refetchHistory()
+      queryClient.invalidateQueries({ queryKey: ['sync-history'] })
+      queryClient.invalidateQueries({ queryKey: ['sync-dashboard'] })
+    }, 2000) // 2 second delay
+  }, [eventSource, refetchDashboard, refetchHistory, queryClient])
 
   // Cleanup on unmount or sync completion
   useEffect(() => {
@@ -217,7 +225,13 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetchDashboard()}
+            onClick={() => {
+              refetchDashboard()
+              refetchHistory()
+              queryClient.invalidateQueries({ queryKey: ['sync-history'] })
+              queryClient.invalidateQueries({ queryKey: ['sync-dashboard'] })
+              addLog('info', 'Manual refresh triggered')
+            }}
             disabled={isDashboardLoading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isDashboardLoading ? 'animate-spin' : ''}`} />
