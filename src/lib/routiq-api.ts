@@ -420,10 +420,10 @@ export class RoutiqAPI {
 
   /**
    * Get real-time sync status and progress
-   * NEW: Detailed progress with step-by-step tracking (direct backend call for real-time)
+   * NEW: Detailed progress with step-by-step tracking via local API proxy
    */
   async getSyncProgress(syncId: string): Promise<SyncProgressResponse> {
-    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/status/${syncId}`);
+    return this.request(`/api/sync/status/${syncId}`);
   }
 
   /**
@@ -436,10 +436,10 @@ export class RoutiqAPI {
 
   /**
    * Get sync history for organization
-   * NEW: Historical sync data with success rates and performance metrics (direct backend call)
+   * NEW: Historical sync data with success rates and performance metrics via local API proxy
    */
   async getSyncHistory(organizationId: string, limit: number = 10): Promise<SyncHistoryResponse> {
-    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/history/${organizationId}?limit=${limit}`);
+    return this.request(`/api/sync/history/${organizationId}?limit=${limit}`);
   }
 
   /**

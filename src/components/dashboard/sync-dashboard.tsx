@@ -68,17 +68,18 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       setActiveSyncId(data.sync_id)
       addLog('info', `Sync started with ID: ${data.sync_id}`)
       
-      // Set up Server-Sent Events
-      const eventSource = api.createSyncEventSource(data.sync_id)
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        addLog('info', `Progress update: ${data.current_step} (${data.progress_percentage}%)`)
-        refetchProgress()
-      }
-      eventSource.onerror = () => {
-        addLog('error', 'Lost connection to sync stream')
-      }
-      setEventSource(eventSource)
+      // Set up polling instead of Server-Sent Events for now
+      // const eventSource = api.createSyncEventSource(data.sync_id)
+      // eventSource.onmessage = (event) => {
+      //   const data = JSON.parse(event.data)
+      //   addLog('info', `Progress update: ${data.current_step} (${data.progress_percentage}%)`)
+      //   refetchProgress()
+      // }
+      // eventSource.onerror = () => {
+      //   addLog('error', 'Lost connection to sync stream')
+      // }
+      // setEventSource(eventSource)
+      addLog('info', 'Real-time polling started')
     },
     onError: (error) => {
       addLog('error', `Failed to start sync: ${error}`)
