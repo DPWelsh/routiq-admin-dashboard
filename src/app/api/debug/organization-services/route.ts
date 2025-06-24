@@ -36,9 +36,13 @@ export async function GET() {
 
     const data = await response.json();
     
+    // Return the data in the expected ServiceConfig format
     return NextResponse.json({
-      organization_id: orgId,
-      services: data,
+      organization_id: data.organization_id || orgId,
+      services: data.services || [],
+      total_services: data.total_services || 0,
+      active_services: data.active_services || 0,
+      available_integrations: data.available_integrations || [],
       timestamp: new Date().toISOString()
     });
 

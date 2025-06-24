@@ -170,14 +170,19 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     const checkServiceConfig = async () => {
       try {
         const config = await api.getServiceConfig(orgId)
+        console.log('Service config received:', config)
         setServiceConfig(config)
         
         // If Cliniko is configured, test the connection
         if (config.available_integrations?.includes('cliniko')) {
+          console.log('Cliniko is configured, testing connection...')
           setIsTestingConnection(true)
           const test = await api.testClinikoConnection(orgId)
+          console.log('Connection test result:', test)
           setConnectionTest(test)
           setIsTestingConnection(false)
+        } else {
+          console.log('Cliniko not found in available_integrations:', config.available_integrations)
         }
       } catch (error) {
         console.error('Failed to check service configuration:', error)

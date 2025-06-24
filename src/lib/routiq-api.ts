@@ -574,6 +574,7 @@ export class RoutiqAPI {
    * Check organization service configuration
    */
   async getServiceConfig(organizationId: string): Promise<ServiceConfig> {
+    // The API route uses the current Clerk organization context, so organizationId is not needed in the URL
     return this.request(`/api/debug/organization-services`);
   }
 
