@@ -13,7 +13,8 @@ import {
   UserCheck,
   Settings,
   ChevronRight,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from "lucide-react"
 
 interface DashboardStats {
@@ -55,6 +56,14 @@ const navigation = [
     roles: ["ADMIN", "USER"],
     description: "Patient management",
     badge: "dynamic:activePatients"
+  },
+  { 
+    name: "Data Sync", 
+    href: "/dashboard/sync", 
+    icon: RefreshCw, 
+    roles: ["ADMIN", "USER"],
+    description: "Real-time sync dashboard",
+    badge: "New"
   },
   { 
     name: "Settings", 

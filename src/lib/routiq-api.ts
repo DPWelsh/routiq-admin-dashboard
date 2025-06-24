@@ -117,6 +117,80 @@ export interface SyncDashboardResponse {
   };
 }
 
+// New Sync Dashboard Interfaces
+export interface NewSyncTriggerResponse {
+  message: string;
+  sync_id: string;
+  organization_id: string;
+  status: string;
+}
+
+export interface SyncProgressResponse {
+  organization_id: string;
+  sync_id: string;
+  status: 'idle' | 'starting' | 'fetching_patients' | 'fetching_appointments' | 'analyzing' | 'storing' | 'completed' | 'failed';
+  progress_percentage: number;
+  current_step: string;
+  total_steps: number;
+  current_step_number: number;
+  patients_found: number;
+  appointments_found: number;
+  active_patients_identified: number;
+  active_patients_stored: number;
+  started_at: string | null;
+  completed_at: string | null;
+  estimated_completion?: string | null;
+  errors: string[];
+  last_updated: string;
+}
+
+export interface SyncDashboardDataResponse {
+  organization_id: string;
+  current_sync?: {
+    sync_id: string;
+    status: string;
+    progress_percentage: number;
+    current_step: string;
+    patients_found: number;
+    appointments_found: number;
+    active_patients_identified: number;
+    active_patients_stored: number;
+  };
+  patient_stats: {
+    total_patients: number;
+    active_patients: number;
+    patients_with_upcoming: number;
+    patients_with_recent: number;
+    last_sync_time: string | null;
+  };
+  last_sync?: {
+    status: string;
+    started_at: string;
+    completed_at: string;
+    records_success: number;
+  };
+  sync_available: boolean;
+}
+
+export interface SyncHistoryResponse {
+  organization_id: string;
+  total_syncs: number;
+  successful_syncs: number;
+  failed_syncs: number;
+  last_sync_at: string | null;
+  last_successful_sync_at: string | null;
+  average_sync_duration_seconds: number | null;
+  recent_syncs: Array<{
+    sync_id: string;
+    status: string;
+    started_at: string;
+    completed_at?: string;
+    duration_seconds?: number;
+    patients_processed?: number;
+    errors?: string[];
+  }>;
+}
+
 export class RoutiqAPI {
   private baseUrl: string;
   private defaultHeaders: HeadersInit;
@@ -331,6 +405,70 @@ export class RoutiqAPI {
   }
 
   // ========================================
+  // NEW SYNC DASHBOARD ENDPOINTS (Available Now)
+  // ========================================
+
+  /**
+   * Start sync with real-time progress tracking
+   * NEW: Uses the enhanced sync system with 8-step progress via local API proxy
+   */
+  async startSyncWithProgress(organizationId: string): Promise<NewSyncTriggerResponse> {
+    return this.request(`/api/sync/start/${organizationId}`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * Get real-time sync status and progress
+   * NEW: Detailed progress with step-by-step tracking (direct backend call for real-time)
+   */
+  async getSyncProgress(syncId: string): Promise<SyncProgressResponse> {
+    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/status/${syncId}`);
+  }
+
+  /**
+   * Get comprehensive sync dashboard data
+   * NEW: Complete dashboard view with current sync, stats, and history via local API proxy
+   */
+  async getNewSyncDashboard(organizationId: string): Promise<SyncDashboardDataResponse> {
+    return this.request(`/api/sync/dashboard/${organizationId}`);
+  }
+
+  /**
+   * Get sync history for organization
+   * NEW: Historical sync data with success rates and performance metrics (direct backend call)
+   */
+  async getSyncHistory(organizationId: string, limit: number = 10): Promise<SyncHistoryResponse> {
+    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/history/${organizationId}?limit=${limit}`);
+  }
+
+  /**
+   * Cancel a running sync operation
+   * NEW: Ability to cancel long-running syncs (direct backend call)
+   */
+  async cancelSync(syncId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/cancel/${syncId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  /**
+   * Get all currently active sync operations
+   * NEW: System-wide view of active syncs (direct backend call)
+   */
+  async getActiveSyncs(): Promise<{ active_syncs: SyncProgressResponse[] }> {
+    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/active`);
+  }
+
+  /**
+   * Create EventSource for real-time sync updates
+   * NEW: Server-Sent Events for live progress updates (direct backend call for streaming)
+   */
+  createSyncEventSource(syncId: string): EventSource {
+    return new EventSource(`https://routiq-backend-prod.up.railway.app/api/v1/sync/stream/${syncId}`);
+  }
+
+  // ========================================
   // UTILITY METHODS
   // ========================================
 
@@ -348,17 +486,32 @@ export class RoutiqAPI {
   }
 
   /**
+   * Test if new sync dashboard endpoints are available
+   */
+  async testNewSyncEndpoints(organizationId: string): Promise<boolean> {
+    try {
+      await this.getNewSyncDashboard(organizationId);
+      return true;
+    } catch (_error) {
+      console.log('New sync dashboard not yet available:', _error);
+      return false;
+    }
+  }
+
+  /**
    * Get available features based on what endpoints work
    */
   async getAvailableFeatures(organizationId: string): Promise<{
     basic_sync: boolean;
     active_patients: boolean;
     dashboard: boolean;
+    new_sync_dashboard: boolean;
   }> {
     const features = {
       basic_sync: false,
       active_patients: false,
-      dashboard: false
+      dashboard: false,
+      new_sync_dashboard: false
     };
 
     try {
@@ -374,6 +527,13 @@ export class RoutiqAPI {
       features.dashboard = true;
     } catch (_error) {
       console.log('Advanced features not yet available');
+    }
+
+    try {
+      await this.getNewSyncDashboard(organizationId);
+      features.new_sync_dashboard = true;
+    } catch (_error) {
+      console.log('New sync dashboard not yet available');
     }
 
     return features;
