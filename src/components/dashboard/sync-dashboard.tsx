@@ -82,7 +82,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       addLog('info', 'Real-time polling started')
     },
     onError: (error) => {
-      addLog('error', `Failed to start sync: ${error}`)
+      console.error('Sync start error:', error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      addLog('error', `Failed to start sync: ${errorMessage}`)
     },
   })
 
@@ -119,11 +121,17 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Cleanup on unmount or sync completion
   useEffect(() => {
     if (progressData?.status === 'completed' || progressData?.status === 'failed') {
-      addLog(progressData.status === 'completed' ? 'success' : 'error', 
-        `Sync ${progressData.status}${progressData.status === 'completed' ? ` - ${progressData.active_patients_stored} patients stored` : ''}`)
+      if (progressData.status === 'completed') {
+        addLog('success', `Sync completed - ${progressData.active_patients_stored} patients stored`)
+      } else {
+        const errorDetails = progressData.errors && progressData.errors.length > 0 
+          ? ` - ${progressData.errors.join(', ')}` 
+          : ''
+        addLog('error', `Sync failed${errorDetails}`)
+      }
       cleanup()
     }
-  }, [progressData?.status, progressData?.active_patients_stored, addLog, cleanup])
+  }, [progressData?.status, progressData?.active_patients_stored, progressData?.errors, addLog, cleanup])
 
   useEffect(() => {
     return () => {
@@ -179,6 +187,25 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <RefreshCw className={`h-4 w-4 mr-2 ${isDashboardLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          {activeSyncId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const status = await api.getSyncProgress(activeSyncId)
+                  addLog('info', `Debug - Status: ${status.status}, Progress: ${status.progress_percentage}%, Errors: ${status.errors?.length || 0}`)
+                  if (status.errors && status.errors.length > 0) {
+                    status.errors.forEach(error => addLog('error', `Error detail: ${error}`))
+                  }
+                } catch (error) {
+                  addLog('error', `Debug failed: ${error}`)
+                }
+              }}
+            >
+              Debug Status
+            </Button>
+          )}
           {activeSyncId ? (
             <Button
               variant="destructive"
