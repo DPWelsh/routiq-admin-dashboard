@@ -462,6 +462,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                   <div>
                     <div className="text-sm text-muted-foreground">Total Patients</div>
                     <div className="text-2xl font-bold">{dashboardData?.patient_stats.total_patients || 0}</div>
+                    {dashboardData?.patient_stats.last_sync_time && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Last updated: {formatDistanceToNow(new Date(dashboardData.patient_stats.last_sync_time), { addSuffix: true })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -474,6 +479,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                   <div>
                     <div className="text-sm text-muted-foreground">Active Patients</div>
                     <div className="text-2xl font-bold">{dashboardData?.patient_stats.active_patients || 0}</div>
+                    {dashboardData?.patient_stats?.total_patients && dashboardData.patient_stats.total_patients > 0 && dashboardData.patient_stats.active_patients !== undefined && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {Math.round((dashboardData.patient_stats.active_patients / dashboardData.patient_stats.total_patients) * 100)}% of total
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -486,6 +496,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                   <div>
                     <div className="text-sm text-muted-foreground">With Upcoming</div>
                     <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_upcoming || 0}</div>
+                    {dashboardData?.patient_stats?.active_patients && dashboardData.patient_stats.active_patients > 0 && dashboardData.patient_stats.patients_with_upcoming !== undefined && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {Math.round((dashboardData.patient_stats.patients_with_upcoming / dashboardData.patient_stats.active_patients) * 100)}% of active
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -498,11 +513,76 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                   <div>
                     <div className="text-sm text-muted-foreground">With Recent</div>
                     <div className="text-2xl font-bold">{dashboardData?.patient_stats.patients_with_recent || 0}</div>
+                    {dashboardData?.patient_stats?.active_patients && dashboardData.patient_stats.active_patients > 0 && dashboardData.patient_stats.patients_with_recent !== undefined && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {Math.round((dashboardData.patient_stats.patients_with_recent / dashboardData.patient_stats.active_patients) * 100)}% of active
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* Sync Performance Metrics */}
+          {historyData && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Sync Performance Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{historyData.total_syncs}</div>
+                    <div className="text-sm text-muted-foreground">Total Syncs</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{historyData.successful_syncs}</div>
+                    <div className="text-sm text-muted-foreground">Successful</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {historyData.total_syncs > 0 ? Math.round((historyData.successful_syncs / historyData.total_syncs) * 100) : 0}% success rate
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{historyData.failed_syncs}</div>
+                    <div className="text-sm text-muted-foreground">Failed</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {historyData.total_syncs > 0 ? Math.round((historyData.failed_syncs / historyData.total_syncs) * 100) : 0}% failure rate
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {historyData.average_sync_duration_seconds 
+                        ? Math.round(historyData.average_sync_duration_seconds / 60) 
+                        : 0}m
+                    </div>
+                    <div className="text-sm text-muted-foreground">Avg Duration</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {historyData.average_sync_duration_seconds 
+                        ? `${historyData.average_sync_duration_seconds}s`
+                        : 'N/A'
+                      }
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {historyData.last_sync_at 
+                        ? formatDistanceToNow(new Date(historyData.last_sync_at), { addSuffix: true }).replace(' ago', '')
+                        : 'Never'
+                      }
+                    </div>
+                    <div className="text-sm text-muted-foreground">Last Sync</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {historyData.last_sync_at 
+                        ? new Date(historyData.last_sync_at).toLocaleDateString()
+                        : 'No sync yet'
+                      }
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sync History */}
@@ -518,10 +598,15 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                         <div className="flex items-center gap-3">
                           {getStatusIcon(sync.status)}
                           <div>
-                            <div className="font-medium">{sync.sync_id}</div>
+                            <div className="font-medium text-sm">{sync.sync_id}</div>
                             <div className="text-sm text-muted-foreground">
                               {formatDistanceToNow(new Date(sync.started_at), { addSuffix: true })}
                             </div>
+                            {sync.duration_seconds && (
+                              <div className="text-xs text-muted-foreground">
+                                Duration: {Math.round(sync.duration_seconds / 60)}m {sync.duration_seconds % 60}s
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
@@ -531,6 +616,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                           {sync.patients_processed && (
                             <div className="text-sm text-muted-foreground mt-1">
                               {sync.patients_processed} patients
+                            </div>
+                          )}
+                          {sync.errors && sync.errors.length > 0 && (
+                            <div className="text-xs text-red-600 mt-1">
+                              {sync.errors.length} error{sync.errors.length > 1 ? 's' : ''}
                             </div>
                           )}
                         </div>
@@ -546,7 +636,18 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             {/* Live Logs */}
             <Card>
               <CardHeader>
-                <CardTitle>Live Activity Log</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Live Activity Log</CardTitle>
+                  {logs.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLogs([])}
+                    >
+                      Clear Logs
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -554,7 +655,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                     logs.map((log, index) => (
                       <div key={index} className="flex items-start gap-2 text-sm">
                         <Badge 
-                          variant={log.level === 'error' ? 'destructive' : log.level === 'warning' ? 'secondary' : 'outline'}
+                          variant={log.level === 'error' ? 'destructive' : log.level === 'warning' ? 'secondary' : log.level === 'success' ? 'default' : 'outline'}
                           className="text-xs"
                         >
                           {log.level}
@@ -568,7 +669,15 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                       </div>
                     ))
                   ) : (
-                    <p className="text-muted-foreground">No activity yet</p>
+                    <div className="text-center py-8">
+                      <div className="text-muted-foreground mb-2">
+                        <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        No activity yet
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Activity will appear here when sync operations are running
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -582,20 +691,45 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                 <CardTitle>Last Successful Sync</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <div className="text-sm text-muted-foreground">Completed</div>
                     <div className="font-medium">
                       {formatDistanceToNow(new Date(dashboardData.last_sync.completed_at), { addSuffix: true })}
                     </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {new Date(dashboardData.last_sync.completed_at).toLocaleDateString()} at{' '}
+                      {new Date(dashboardData.last_sync.completed_at).toLocaleTimeString()}
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Records Processed</div>
                     <div className="font-medium">{dashboardData.last_sync.records_success}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Successfully synchronized
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Status</div>
                     <Badge variant="default">{dashboardData.last_sync.status}</Badge>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Started: {formatDistanceToNow(new Date(dashboardData.last_sync.started_at), { addSuffix: true })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Duration</div>
+                    <div className="font-medium">
+                      {Math.round(
+                        (new Date(dashboardData.last_sync.completed_at).getTime() - 
+                         new Date(dashboardData.last_sync.started_at).getTime()) / 1000 / 60
+                      )}m
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {Math.round(
+                        (new Date(dashboardData.last_sync.completed_at).getTime() - 
+                         new Date(dashboardData.last_sync.started_at).getTime()) / 1000
+                      )} seconds total
+                    </div>
                   </div>
                 </div>
               </CardContent>
