@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Play, 
   Square, 
@@ -41,6 +42,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const [serviceConfig, setServiceConfig] = useState<ServiceConfig | null>(null)
   const [connectionTest, setConnectionTest] = useState<ClinikoConnectionTest | null>(null)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
+  const [syncMode, setSyncMode] = useState<'full' | 'incremental' | 'quick'>('full')
 
   // Query for dashboard data
   const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt } = useQuery({
@@ -252,10 +254,17 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Mutation to start sync
   const startSyncMutation = useMutation({
-    mutationFn: (organizationId: string) => api.startSyncWithProgress(organizationId),
+    mutationFn: ({ organizationId, mode }: { organizationId: string; mode: 'full' | 'incremental' | 'quick' }) => {
+      console.log(`🚀 [SYNC START] Starting ${mode} sync for organization: ${organizationId}`)
+      addLog('info', `Starting ${mode} sync...`)
+      return api.startSyncWithProgress(organizationId, mode)
+    },
     onSuccess: (data) => {
       setActiveSyncId(data.sync_id)
-      addLog('info', `Sync started with ID: ${data.sync_id}`)
+      console.log(`✅ [SYNC START] Sync started successfully with ID: ${data.sync_id}`)
+      console.log(`📊 [SYNC START] Sync mode: ${syncMode}`)
+      console.log(`🔄 [SYNC START] Status: ${data.status}`)
+      addLog('success', `${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync started with ID: ${data.sync_id}`)
       
       // Set up polling instead of Server-Sent Events for now
       // const eventSource = api.createSyncEventSource(data.sync_id)
@@ -268,12 +277,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       //   addLog('error', 'Lost connection to sync stream')
       // }
       // setEventSource(eventSource)
-      addLog('info', 'Real-time polling started')
+      addLog('info', 'Real-time polling started for enhanced sync tracking')
     },
     onError: (error) => {
-      console.error('Sync start error:', error)
+      console.error('❌ [SYNC START] Sync start error:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      addLog('error', `Failed to start sync: ${errorMessage}`)
+      addLog('error', `Failed to start ${syncMode} sync: ${errorMessage}`)
     },
   })
 
@@ -483,14 +492,42 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               Cancel Sync
             </Button>
           ) : (
-            <Button
-              onClick={() => orgId && startSyncMutation.mutate(orgId)}
-              disabled={startSyncMutation.isPending || !dashboardData?.sync_available}
-              size="sm"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Start Sync
-            </Button>
+            <>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">
+                    Sync Mode:
+                  </label>
+                  <Select
+                    value={syncMode}
+                    onValueChange={(value) => setSyncMode(value as 'full' | 'incremental' | 'quick')}
+                    disabled={startSyncMutation.isPending}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full">Full Sync (Recommended)</SelectItem>
+                      <SelectItem value="incremental">Incremental Sync</SelectItem>
+                      <SelectItem value="quick">Quick Sync</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground max-w-md">
+                  {syncMode === 'full' && '✅ Complete data synchronization with enhanced backend processing'}
+                  {syncMode === 'incremental' && '⚡ Sync only changes since last update'}
+                  {syncMode === 'quick' && '🚀 Fast sync for urgent updates'}
+                </div>
+              </div>
+              <Button
+                onClick={() => orgId && startSyncMutation.mutate({ organizationId: orgId, mode: syncMode })}
+                disabled={startSyncMutation.isPending || !dashboardData?.sync_available}
+                size="sm"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start {syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} Sync
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -442,9 +442,11 @@ export class RoutiqAPI {
   /**
    * Start sync with real-time progress tracking
    * NEW: Uses the enhanced sync system with 8-step progress via local API proxy
+   * @param organizationId - The organization to sync
+   * @param syncMode - The sync mode: 'full' (default), 'incremental', or 'quick'
    */
-  async startSyncWithProgress(organizationId: string): Promise<NewSyncTriggerResponse> {
-    return this.request(`/api/sync/start/${organizationId}`, {
+  async startSyncWithProgress(organizationId: string, syncMode: 'full' | 'incremental' | 'quick' = 'full'): Promise<NewSyncTriggerResponse> {
+    return this.request(`/api/sync/start/${organizationId}?sync_mode=${syncMode}`, {
       method: 'POST'
     });
   }

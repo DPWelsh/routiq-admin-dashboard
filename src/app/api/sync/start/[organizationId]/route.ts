@@ -19,8 +19,21 @@ export async function POST(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    // Extract sync_mode from query parameters
+    const { searchParams } = new URL(request.url);
+    const syncMode = searchParams.get('sync_mode') || 'full';
+    
+    // Validate sync_mode parameter
+    const validSyncModes = ['full', 'incremental', 'quick'];
+    if (!validSyncModes.includes(syncMode)) {
+      return NextResponse.json(
+        { error: 'Invalid sync_mode. Must be one of: full, incremental, quick' },
+        { status: 400 }
+      );
+    }
+
     const response = await fetch(
-      `https://routiq-backend-prod.up.railway.app/api/v1/sync/start/${organizationId}`,
+      `https://routiq-backend-prod.up.railway.app/api/v1/sync/start/${organizationId}?sync_mode=${syncMode}`,
       {
         method: 'POST',
         headers: {
