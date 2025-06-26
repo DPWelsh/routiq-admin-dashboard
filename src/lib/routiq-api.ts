@@ -3,8 +3,17 @@
  * Integrates with Cliniko Active Patients Backend
  */
 
-// Use local Next.js API routes to avoid CORS issues in production
-const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
+// Use Railway backend directly as requested by backend team
+// This avoids the local API proxy pattern and calls the backend directly
+const API_BASE = 'https://routiq-backend-prod.up.railway.app';
+
+// Debug logging to see what's happening
+if (typeof window !== 'undefined') {
+  console.log('🔧 [API CONFIG] Using direct Railway backend calls');
+  console.log('🔧 [API CONFIG] API_BASE:', API_BASE);
+  console.log('🔧 [API CONFIG] NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('🔧 [API CONFIG] Window location:', window.location.href);
+}
 
 // Organization constants
 export const ORGANIZATIONS = {
@@ -238,7 +247,15 @@ export class RoutiqAPI {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const response = await fetch(`${this.baseUrl}${endpoint}`, {
-          headers: { ...this.defaultHeaders, ...options.headers },
+          headers: { 
+            ...this.defaultHeaders, 
+            ...options.headers,
+            // Add CORS headers for direct backend calls
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-organization-id'
+          },
+          mode: 'cors', // Enable CORS for cross-origin requests
           ...options
         });
 
@@ -441,64 +458,64 @@ export class RoutiqAPI {
 
   /**
    * Start sync with real-time progress tracking
-   * NEW: Uses the enhanced sync system with 8-step progress via local API proxy
+   * NEW: Uses the enhanced sync system with 8-step progress via Railway backend
    * @param organizationId - The organization to sync
    * @param syncMode - The sync mode: 'full' (default), 'incremental', or 'quick'
    */
   async startSyncWithProgress(organizationId: string, syncMode: 'full' | 'incremental' | 'quick' = 'full'): Promise<NewSyncTriggerResponse> {
-    return this.request(`/api/sync/start/${organizationId}?sync_mode=${syncMode}`, {
+    return this.request(`/api/v1/sync/start/${organizationId}?sync_mode=${syncMode}`, {
       method: 'POST'
     });
   }
 
   /**
    * Get real-time sync status and progress
-   * NEW: Detailed progress with step-by-step tracking via local API proxy
+   * NEW: Detailed progress with step-by-step tracking via Railway backend
    */
   async getSyncProgress(syncId: string): Promise<SyncProgressResponse> {
-    return this.request(`/api/sync/status/${syncId}`);
+    return this.request(`/api/v1/sync/status/${syncId}`);
   }
 
   /**
    * Get comprehensive sync dashboard data
-   * NEW: Complete dashboard view with current sync, stats, and history via local API proxy
+   * NEW: Complete dashboard view with current sync, stats, and history via Railway backend
    */
   async getNewSyncDashboard(organizationId: string): Promise<SyncDashboardDataResponse> {
-    return this.request(`/api/sync/dashboard/${organizationId}`);
+    return this.request(`/api/v1/sync/dashboard/${organizationId}`);
   }
 
   /**
    * Get sync history for organization
-   * NEW: Historical sync data with success rates and performance metrics via local API proxy
+   * NEW: Historical sync data with success rates and performance metrics via Railway backend
    */
   async getSyncHistory(organizationId: string, limit: number = 10): Promise<SyncHistoryResponse> {
-    return this.request(`/api/sync/history/${organizationId}?limit=${limit}`);
+    return this.request(`/api/v1/sync/history/${organizationId}?limit=${limit}`);
   }
 
   /**
    * Cancel a running sync operation
-   * NEW: Ability to cancel long-running syncs (direct backend call)
+   * NEW: Ability to cancel long-running syncs (Railway backend)
    */
   async cancelSync(syncId: string): Promise<{ success: boolean; message: string }> {
-    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/cancel/${syncId}`, {
+    return this.request(`/api/v1/sync/cancel/${syncId}`, {
       method: 'DELETE'
     });
   }
 
   /**
    * Get all currently active sync operations
-   * NEW: System-wide view of active syncs (direct backend call)
+   * NEW: System-wide view of active syncs (Railway backend)
    */
   async getActiveSyncs(): Promise<{ active_syncs: SyncProgressResponse[] }> {
-    return this.request(`https://routiq-backend-prod.up.railway.app/api/v1/sync/active`);
+    return this.request(`/api/v1/sync/active`);
   }
 
   /**
    * Create EventSource for real-time sync updates
-   * NEW: Server-Sent Events for live progress updates (direct backend call for streaming)
+   * NEW: Server-Sent Events for live progress updates (Railway backend)
    */
   createSyncEventSource(syncId: string): EventSource {
-    return new EventSource(`https://routiq-backend-prod.up.railway.app/api/v1/sync/stream/${syncId}`);
+    return new EventSource(`${API_BASE}/api/v1/sync/stream/${syncId}`);
   }
 
   // ========================================
