@@ -383,8 +383,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     checkServiceConfig()
   }, [orgId])
 
-  const clinikoConfigured = serviceConfig?.available_integrations?.includes('cliniko') || false
-  const clinikoConnected = connectionTest?.connected || false
+  // For direct backend testing, use sync_available from dashboard data instead of service config
+  const clinikoConfigured = dashboardData?.sync_available || false
+  const clinikoConnected = dashboardData?.sync_available || false
 
   if (!orgId) {
     return (
