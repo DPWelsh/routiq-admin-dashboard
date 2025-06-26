@@ -28,6 +28,19 @@ import { api, RoutiqAPI } from '@/lib/routiq-api'
 import { formatDistanceToNow } from 'date-fns'
 import { type ServiceConfig, type ClinikoConnectionTest } from '@/lib/routiq-api'
 
+// Local interface to handle the actual API response format
+interface PatientsApiResponse {
+  organization_id: string;
+  total_active_patients: number;
+  patients_with_recent_appointments?: number;
+  patients_with_upcoming_appointments?: number;
+  last_sync_date?: string | null;
+  avg_recent_appointments?: number;
+  avg_upcoming_appointments?: number;
+  avg_total_appointments?: number;
+  timestamp: string;
+}
+
 interface SyncDashboardProps {
   organizationId?: string
 }
@@ -402,11 +415,24 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     // Priority 2: Use patients summary if available
     if (patientsSummary) {
       console.log('📈 Using patients summary data:', patientsSummary);
+      
+      // Calculate estimated patient counts from averages
+      const totalActive = patientsSummary.total_active_patients || 0;
+      // Use type assertion since the API response has these fields even if TypeScript doesn't know yet
+      const apiResponse = patientsSummary as PatientsApiResponse;
+      const avgRecent = apiResponse.avg_recent_appointments || 0;
+      const avgUpcoming = apiResponse.avg_upcoming_appointments || 0;
+      
+      // Estimate: if avg > 0, assume most patients have appointments
+      // This is a rough estimate since we only have averages
+      const estimatedWithRecent = avgRecent > 0 ? Math.round(totalActive * Math.min(avgRecent, 1)) : 0;
+      const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(totalActive * Math.min(avgUpcoming, 1)) : 0;
+      
       return {
-        total_patients: patientsSummary.total_active_patients || 0,
-        active_patients: patientsSummary.total_active_patients || 0,
-        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments || 0,
-        patients_with_recent: patientsSummary.patients_with_recent_appointments || 0,
+        total_patients: totalActive,
+        active_patients: totalActive,
+        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
+        patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
         last_sync_time: patientsSummary.last_sync_date || null
       };
     }

@@ -93,10 +93,11 @@ export interface ActivePatientsResponse {
 export interface ActivePatientsSummaryResponse {
   organization_id: string;
   total_active_patients: number;
-  patients_with_recent_appointments: number;
-  patients_with_upcoming_appointments: number;
+  patients_with_recent_appointments?: number;
+  patients_with_upcoming_appointments?: number;
   last_sync_date?: string;
   avg_recent_appointments: number;
+  avg_upcoming_appointments: number;
   avg_total_appointments: number;
   timestamp: string;
 }
