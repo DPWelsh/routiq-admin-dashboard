@@ -45,7 +45,52 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Query for dashboard data
   const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt } = useQuery({
     queryKey: ['sync-dashboard', orgId],
-    queryFn: () => orgId ? api.getNewSyncDashboard(orgId) : null,
+    queryFn: async () => {
+      console.log('🔄 [SYNC DASHBOARD] Fetching dashboard data for org:', orgId)
+      console.log('🕐 [SYNC DASHBOARD] Current time:', new Date().toISOString())
+      
+      if (!orgId) {
+        console.log('❌ [SYNC DASHBOARD] No orgId provided, returning null')
+        return null
+      }
+      
+      try {
+        const result = await api.getNewSyncDashboard(orgId)
+        console.log('✅ [SYNC DASHBOARD] Dashboard data received:', result)
+        
+        if (result?.last_sync) {
+          console.log('📊 [SYNC DASHBOARD] Last sync details:')
+          console.log('  - Completed at:', result.last_sync.completed_at)
+          console.log('  - Started at:', result.last_sync.started_at)
+          console.log('  - Records processed:', result.last_sync.records_success)
+          console.log('  - Status:', result.last_sync.status)
+          
+          const syncTime = new Date(result.last_sync.completed_at)
+          const now = new Date()
+          const ageMinutes = Math.round((now.getTime() - syncTime.getTime()) / 1000 / 60)
+          const ageHours = Math.round(ageMinutes / 60)
+          
+          console.log('⏰ [SYNC DASHBOARD] Sync timing analysis:')
+          console.log('  - Sync completed:', syncTime.toISOString())
+          console.log('  - Current time:', now.toISOString())
+          console.log('  - Age in minutes:', ageMinutes)
+          console.log('  - Age in hours:', ageHours)
+          console.log('  - Is suspicious (>12h old):', ageHours > 12)
+        }
+        
+        if (result?.patient_stats) {
+          console.log('👥 [SYNC DASHBOARD] Patient stats:')
+          console.log('  - Total patients:', result.patient_stats.total_patients)
+          console.log('  - Active patients:', result.patient_stats.active_patients)
+          console.log('  - Last sync time:', result.patient_stats.last_sync_time)
+        }
+        
+        return result
+      } catch (error) {
+        console.error('❌ [SYNC DASHBOARD] Error fetching dashboard data:', error)
+        throw error
+      }
+    },
     enabled: !!orgId,
     refetchInterval: activeSyncId ? 2000 : 10000, // More frequent updates during sync, and faster refresh when not syncing
     staleTime: 5000, // Consider data stale after 5 seconds
@@ -54,7 +99,44 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Query for sync history
   const { data: historyData, refetch: refetchHistory, dataUpdatedAt: historyUpdatedAt } = useQuery({
     queryKey: ['sync-history', orgId],
-    queryFn: () => orgId ? api.getSyncHistory(orgId, 5) : null,
+    queryFn: async () => {
+      console.log('📜 [SYNC HISTORY] Fetching sync history for org:', orgId)
+      console.log('🕐 [SYNC HISTORY] Current time:', new Date().toISOString())
+      
+      if (!orgId) {
+        console.log('❌ [SYNC HISTORY] No orgId provided, returning null')
+        return null
+      }
+      
+      try {
+        const result = await api.getSyncHistory(orgId, 5)
+        console.log('✅ [SYNC HISTORY] History data received:', result)
+        
+        if (result?.recent_syncs?.length > 0) {
+          console.log('📋 [SYNC HISTORY] Recent syncs analysis:')
+          result.recent_syncs.forEach((sync, index) => {
+            const syncTime = new Date(sync.started_at)
+            const ageMinutes = Math.round((Date.now() - syncTime.getTime()) / 1000 / 60)
+            console.log(`  ${index + 1}. ${sync.sync_id}:`)
+            console.log(`     - Started: ${sync.started_at}`)
+            console.log(`     - Status: ${sync.status}`)
+            console.log(`     - Age: ${ageMinutes} minutes`)
+            console.log(`     - Patients: ${sync.patients_processed || 'N/A'}`)
+          })
+        }
+        
+        console.log('📊 [SYNC HISTORY] Summary stats:')
+        console.log('  - Total syncs:', result?.total_syncs)
+        console.log('  - Successful syncs:', result?.successful_syncs)
+        console.log('  - Failed syncs:', result?.failed_syncs)
+        console.log('  - Last sync at:', result?.last_sync_at)
+        
+        return result
+      } catch (error) {
+        console.error('❌ [SYNC HISTORY] Error fetching history data:', error)
+        throw error
+      }
+    },
     enabled: !!orgId,
     staleTime: 5000, // Consider data stale after 5 seconds
     refetchInterval: 10000, // Regular refresh to catch recent syncs
@@ -68,24 +150,6 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     refetchInterval: activeSyncId ? 1000 : false, // Real-time updates during sync
   })
 
-  // Add data freshness validation
-  const isDataStale = useCallback(() => {
-    if (!dataUpdatedAt) return false
-    const staleThresholdMs = 60000 // 1 minute
-    return Date.now() - dataUpdatedAt > staleThresholdMs
-  }, [dataUpdatedAt])
-
-  // Check if sync data looks outdated based on current time
-  const isSyncDataSuspicious = useCallback(() => {
-    if (!dashboardData?.last_sync?.completed_at) return false
-    const syncTime = new Date(dashboardData.last_sync.completed_at)
-    const now = new Date()
-    const hoursSinceSync = (now.getTime() - syncTime.getTime()) / (1000 * 60 * 60)
-    
-    // Flag if the "last sync" is more than 12 hours old but we just did one
-    return hoursSinceSync > 12
-  }, [dashboardData?.last_sync?.completed_at])
-
   const addLog = useCallback((level: string, message: string) => {
     setLogs(prev => [{
       timestamp: new Date().toISOString(),
@@ -96,13 +160,95 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Enhanced refresh function
   const forceRefresh = useCallback(() => {
+    console.log('🔄 [FORCE REFRESH] Starting force refresh...')
+    console.log('🕐 [FORCE REFRESH] Current time:', new Date().toISOString())
+    console.log('🔑 [FORCE REFRESH] Organization ID:', orgId)
+    
     addLog('info', 'Force refreshing all data...')
+    
+    console.log('🗑️ [FORCE REFRESH] Removing cached queries...')
     queryClient.removeQueries({ queryKey: ['sync-dashboard'] })
     queryClient.removeQueries({ queryKey: ['sync-history'] })
-    refetchDashboard()
-    refetchHistory()
-    addLog('info', 'Data refresh completed')
-  }, [queryClient, refetchDashboard, refetchHistory, addLog])
+    
+    console.log('📡 [FORCE REFRESH] Triggering manual refetch...')
+    Promise.all([refetchDashboard(), refetchHistory()])
+      .then(() => {
+        console.log('✅ [FORCE REFRESH] All queries refetched successfully')
+        addLog('info', 'Data refresh completed')
+      })
+      .catch((error) => {
+        console.error('❌ [FORCE REFRESH] Error during refresh:', error)
+        addLog('error', `Refresh failed: ${error}`)
+      })
+  }, [queryClient, refetchDashboard, refetchHistory, addLog, orgId])
+
+  // Add data freshness validation
+  const isDataStale = useCallback(() => {
+    const result = dataUpdatedAt ? Date.now() - dataUpdatedAt > 60000 : false
+    console.log('🕐 [DATA FRESHNESS] Checking if data is stale:')
+    console.log('  - Data updated at:', dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : 'never')
+    console.log('  - Current time:', new Date().toISOString())
+    console.log('  - Is stale:', result)
+    return result
+  }, [dataUpdatedAt])
+
+  // Check if sync data looks outdated based on current time
+  const isSyncDataSuspicious = useCallback(() => {
+    if (!dashboardData?.last_sync?.completed_at) {
+      console.log('🚨 [SUSPICIOUS DATA] No last sync data available')
+      return false
+    }
+    
+    const syncTime = new Date(dashboardData.last_sync.completed_at)
+    const now = new Date()
+    const hoursSinceSync = (now.getTime() - syncTime.getTime()) / (1000 * 60 * 60)
+    const result = hoursSinceSync > 12
+    
+    console.log('🚨 [SUSPICIOUS DATA] Analyzing sync data:')
+    console.log('  - Last sync completed:', syncTime.toISOString())
+    console.log('  - Current time:', now.toISOString())
+    console.log('  - Hours since sync:', hoursSinceSync)
+    console.log('  - Is suspicious (>12h):', result)
+    console.log('  - User claims sync was 1 hour ago, but data shows', Math.round(hoursSinceSync), 'hours ago')
+    
+    return result
+  }, [dashboardData?.last_sync?.completed_at])
+
+  // Log data changes
+  useEffect(() => {
+    console.log('📊 [DATA CHANGE] Dashboard data changed:', dashboardData)
+    if (dashboardData) {
+      console.log('📊 [DATA CHANGE] Current dashboard data summary:')
+      console.log('  - Organization ID:', dashboardData.organization_id)
+      console.log('  - Sync available:', dashboardData.sync_available)
+      console.log('  - Has current sync:', !!dashboardData.current_sync)
+      console.log('  - Has last sync:', !!dashboardData.last_sync)
+      console.log('  - Patient stats:', dashboardData.patient_stats)
+    }
+  }, [dashboardData])
+
+  // Log history data changes
+  useEffect(() => {
+    console.log('📜 [HISTORY CHANGE] History data changed:', historyData)
+    if (historyData) {
+      console.log('📜 [HISTORY CHANGE] Current history data summary:')
+      console.log('  - Organization ID:', historyData.organization_id)
+      console.log('  - Total syncs:', historyData.total_syncs)
+      console.log('  - Recent syncs count:', historyData.recent_syncs?.length || 0)
+      console.log('  - Last sync at:', historyData.last_sync_at)
+    }
+  }, [historyData])
+
+  // Log when queries are loading
+  useEffect(() => {
+    console.log('⏳ [LOADING STATE] Dashboard loading:', isDashboardLoading)
+  }, [isDashboardLoading])
+
+  // Log data freshness changes
+  useEffect(() => {
+    console.log('🕐 [FRESHNESS] Data updated at:', dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : 'never')
+    console.log('🕐 [FRESHNESS] History updated at:', historyUpdatedAt ? new Date(historyUpdatedAt).toISOString() : 'never')
+  }, [dataUpdatedAt, historyUpdatedAt])
 
   // Mutation to start sync
   const startSyncMutation = useMutation({
