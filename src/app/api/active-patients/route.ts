@@ -13,7 +13,7 @@ import { NextRequest } from 'next/server'
 import { withClerkOrganization } from '@/lib/auth/clerk-request-context'
 import { logger, logApiRequest, logApiResponse } from '@/lib/utils/logger'
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-v10-production.up.railway.app'
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-prod.up.railway.app'
 
 // Proxy to backend API with Clerk organization context
 export const GET = withClerkOrganization(async (context, request: NextRequest) => {

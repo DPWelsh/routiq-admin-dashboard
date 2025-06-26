@@ -201,20 +201,18 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       return false
     }
     
-    const syncTime = new Date(dashboardData.last_sync.completed_at)
+    const completedAt = new Date(dashboardData.last_sync.completed_at)
     const now = new Date()
-    const hoursSinceSync = (now.getTime() - syncTime.getTime()) / (1000 * 60 * 60)
-    const result = hoursSinceSync > 12
+    const hoursAgo = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60)
     
-    console.log('🚨 [SUSPICIOUS DATA] Analyzing sync data:')
-    console.log('  - Last sync completed:', syncTime.toISOString())
-    console.log('  - Current time:', now.toISOString())
-    console.log('  - Hours since sync:', hoursSinceSync)
-    console.log('  - Is suspicious (>12h):', result)
-    console.log('  - User claims sync was 1 hour ago, but data shows', Math.round(hoursSinceSync), 'hours ago')
+    const isSuspicious = hoursAgo > 24 // More than 24 hours old
+    console.log('🚨 [SUSPICIOUS DATA] Analysis:')
+    console.log('  - Last sync completed:', completedAt.toISOString())
+    console.log('  - Hours ago:', Math.round(hoursAgo * 10) / 10)
+    console.log('  - Is suspicious (>24h):', isSuspicious)
     
-    return result
-  }, [dashboardData?.last_sync?.completed_at])
+    return isSuspicious
+  }, [dashboardData])
 
   // Log data changes
   useEffect(() => {

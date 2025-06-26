@@ -16,7 +16,7 @@ export const debugConfig = {
   isVercel: !!process.env.VERCEL,
   
   // Backend API URL
-  backendApiUrl: process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-v10-production.up.railway.app',
+  backendApiUrl: process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-prod.up.railway.app',
   
   // Vercel deployment info
   vercelRegion: process.env.VERCEL_REGION,

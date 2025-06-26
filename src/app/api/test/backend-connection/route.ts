@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server'
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-v10-production.up.railway.app'
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://routiq-backend-prod.up.railway.app'
 
 export const GET = async (request: NextRequest) => {
   try {
