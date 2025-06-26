@@ -3,16 +3,15 @@
  * Integrates with Cliniko Active Patients Backend
  */
 
-// Use local Next.js API routes as proxies to avoid CORS issues
-// This is the correct approach - the API routes forward to Railway backend
-const API_BASE = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
+// Direct Railway backend calls for testing/verification dashboard
+// This ensures we're testing the actual backend that the main app will use
+const API_BASE = 'https://routiq-backend-prod.up.railway.app';
 
 // Debug logging to see what's happening
 if (typeof window !== 'undefined') {
-  console.log('🔧 [API CONFIG] Using local API proxy routes (correct approach)');
+  console.log('🔧 [API CONFIG] Direct Railway backend testing');
   console.log('🔧 [API CONFIG] API_BASE:', API_BASE);
-  console.log('🔧 [API CONFIG] NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
-  console.log('🔧 [API CONFIG] Window location:', window.location.href);
+  console.log('🔧 [API CONFIG] Testing backend for main app verification');
 }
 
 // Organization constants
@@ -450,65 +449,64 @@ export class RoutiqAPI {
 
   /**
    * Start sync with real-time progress tracking
-   * NEW: Uses the enhanced sync system with 8-step progress via local API proxy
+   * Direct backend call for testing verification
    * @param organizationId - The organization to sync
    * @param syncMode - The sync mode: 'full' (default), 'incremental', or 'quick'
    */
   async startSyncWithProgress(organizationId: string, syncMode: 'full' | 'incremental' | 'quick' = 'full'): Promise<NewSyncTriggerResponse> {
-    return this.request(`/api/sync/start/${organizationId}?sync_mode=${syncMode}`, {
+    return this.request(`/api/v1/sync/start/${organizationId}?sync_mode=${syncMode}`, {
       method: 'POST'
     });
   }
 
   /**
    * Get real-time sync status and progress
-   * NEW: Detailed progress with step-by-step tracking via local API proxy
+   * Direct backend call for testing verification
    */
   async getSyncProgress(syncId: string): Promise<SyncProgressResponse> {
-    return this.request(`/api/sync/status/${syncId}`);
+    return this.request(`/api/v1/sync/status/${syncId}`);
   }
 
   /**
    * Get comprehensive sync dashboard data
-   * NEW: Complete dashboard view with current sync, stats, and history via local API proxy
+   * Direct backend call for testing verification
    */
   async getNewSyncDashboard(organizationId: string): Promise<SyncDashboardDataResponse> {
-    return this.request(`/api/sync/dashboard/${organizationId}`);
+    return this.request(`/api/v1/sync/dashboard/${organizationId}`);
   }
 
   /**
    * Get sync history for organization
-   * NEW: Historical sync data with success rates and performance metrics via local API proxy
+   * Direct backend call for testing verification
    */
   async getSyncHistory(organizationId: string, limit: number = 10): Promise<SyncHistoryResponse> {
-    return this.request(`/api/sync/history/${organizationId}?limit=${limit}`);
+    return this.request(`/api/v1/sync/history/${organizationId}?limit=${limit}`);
   }
 
   /**
    * Cancel a running sync operation
-   * NEW: Ability to cancel long-running syncs (via local API proxy)
+   * Direct backend call for testing verification
    */
   async cancelSync(syncId: string): Promise<{ success: boolean; message: string }> {
-    return this.request(`/api/sync/cancel/${syncId}`, {
+    return this.request(`/api/v1/sync/cancel/${syncId}`, {
       method: 'DELETE'
     });
   }
 
   /**
    * Get all currently active sync operations
-   * NEW: System-wide view of active syncs (via local API proxy)
+   * Direct backend call for testing verification
    */
   async getActiveSyncs(): Promise<{ active_syncs: SyncProgressResponse[] }> {
-    return this.request(`/api/sync/active`);
+    return this.request(`/api/v1/sync/active`);
   }
 
   /**
    * Create EventSource for real-time sync updates
-   * NEW: Server-Sent Events for live progress updates (direct to backend for streaming)
+   * Direct backend call for testing verification
    */
   createSyncEventSource(syncId: string): EventSource {
-    // EventSource must go directly to backend since it doesn't work through proxy
-    return new EventSource(`https://routiq-backend-prod.up.railway.app/api/v1/sync/stream/${syncId}`);
+    return new EventSource(`${API_BASE}/api/v1/sync/stream/${syncId}`);
   }
 
   // ========================================
