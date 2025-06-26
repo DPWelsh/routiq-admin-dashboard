@@ -108,77 +108,13 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       })
   }, [queryClient, refetchDashboard, refetchHistory, addSyncLog, orgId])
 
-  // Add data freshness validation
-  const isDataStale = useCallback(() => {
-    const result = dataUpdatedAt ? Date.now() - dataUpdatedAt > 60000 : false
-    console.log('🕐 [DATA FRESHNESS] Checking if data is stale:')
-    console.log('  - Data updated at:', dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : 'never')
-    console.log('  - Current time:', new Date().toISOString())
-    console.log('  - Is stale:', result)
-    return result
-  }, [dataUpdatedAt])
-
-  // Check if sync data looks outdated based on current time
-  const isSyncDataSuspicious = useCallback(() => {
-    if (!dashboardData?.last_sync?.completed_at) {
-      console.log('🚨 [SUSPICIOUS DATA] No last sync data available')
-      return false
+  // Clear stale activeSyncId when backend shows no current sync
+  useEffect(() => {
+    if (dashboardData && !dashboardData.current_sync && activeSyncId) {
+      addSyncLog('info', 'Clearing stale sync state', activeSyncId)
+      setActiveSyncId(null)
     }
-    
-    const completedAt = new Date(dashboardData.last_sync.completed_at)
-    const now = new Date()
-    const hoursAgo = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60)
-    
-    const isSuspicious = hoursAgo > 24 // More than 24 hours old
-    console.log('🚨 [SUSPICIOUS DATA] Analysis:')
-    console.log('  - Last sync completed:', completedAt.toISOString())
-    console.log('  - Hours ago:', Math.round(hoursAgo * 10) / 10)
-    console.log('  - Is suspicious (>24h):', isSuspicious)
-    
-    return isSuspicious
-  }, [dashboardData])
-
-  // Log data changes and clear stale activeSyncId
-  useEffect(() => {
-    console.log('📊 [DATA CHANGE] Dashboard data changed:', dashboardData)
-    if (dashboardData) {
-      console.log('📊 [DATA CHANGE] Current dashboard data summary:')
-      console.log('  - Organization ID:', dashboardData.organization_id)
-      console.log('  - Sync available:', dashboardData.sync_available)
-      console.log('  - Has current sync:', !!dashboardData.current_sync)
-      console.log('  - Has last sync:', !!dashboardData.last_sync)
-      console.log('  - Patient stats:', dashboardData.patient_stats)
-      
-      // Clear activeSyncId if backend shows no current sync
-      if (!dashboardData.current_sync && activeSyncId) {
-        console.log('🧹 [CLEANUP] Backend shows no current sync, clearing stale activeSyncId:', activeSyncId)
-        setActiveSyncId(null)
-      }
-    }
-  }, [dashboardData, activeSyncId])
-
-  // Log history data changes
-  useEffect(() => {
-    console.log('📜 [HISTORY CHANGE] History data changed:', historyData)
-    if (historyData) {
-      console.log('📜 [HISTORY CHANGE] Current history data summary:')
-      console.log('  - Organization ID:', historyData.organization_id)
-      console.log('  - Total syncs:', historyData.total_syncs)
-      console.log('  - Recent syncs count:', historyData.recent_syncs?.length || 0)
-      console.log('  - Last sync at:', historyData.last_sync_at)
-    }
-  }, [historyData])
-
-  // Log when queries are loading
-  useEffect(() => {
-    console.log('⏳ [LOADING STATE] Dashboard loading:', isDashboardLoading)
-  }, [isDashboardLoading])
-
-  // Log data freshness changes
-  useEffect(() => {
-    console.log('🕐 [FRESHNESS] Data updated at:', dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : 'never')
-    console.log('🕐 [FRESHNESS] History updated at:', historyUpdatedAt ? new Date(historyUpdatedAt).toISOString() : 'never')
-  }, [dataUpdatedAt, historyUpdatedAt])
+  }, [dashboardData, activeSyncId, addSyncLog])
 
   // Mutation to start sync
   const startSyncMutation = useMutation({
@@ -266,29 +202,24 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     }
   }
 
-  // Check service configuration on component mount
+  // Check service configuration on component mount (silently for Railway testing)
   useEffect(() => {
     if (!orgId) return;
     
     const checkServiceConfig = async () => {
       try {
         const config = await api.getServiceConfig(orgId)
-        console.log('Service config received:', config)
         setServiceConfig(config)
         
         // If Cliniko is configured, test the connection
         if (config.available_integrations?.includes('cliniko')) {
-          console.log('Cliniko is configured, testing connection...')
           setIsTestingConnection(true)
           const test = await api.testClinikoConnection(orgId)
-          console.log('Connection test result:', test)
           setConnectionTest(test)
           setIsTestingConnection(false)
-        } else {
-          console.log('Cliniko not found in available_integrations:', config.available_integrations)
         }
       } catch (error) {
-        console.error('Failed to check service configuration:', error)
+        // Service config failures are expected during Railway backend testing
       }
     }
 
@@ -322,11 +253,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                 Data updated: {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true })}
               </Badge>
             )}
-            {isDataStale() && (
-              <Badge variant="destructive" className="text-xs">
-                Data may be stale
-              </Badge>
-            )}
+
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -523,47 +450,47 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       {/* Only show sync controls if Cliniko is properly configured */}
       {clinikoConfigured && clinikoConnected ? (
         <>
-          {/* Current Sync Progress */}
-          {(dashboardData?.current_sync || progressData) && (
+          {/* Current Sync Progress - Only show if actively polling or fresh backend data */}
+          {progressData && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
                   Current Sync Progress
-                  <Badge variant="secondary" className={getStatusColor(progressData?.status || dashboardData?.current_sync?.status || '')}>
-                    {progressData?.status || dashboardData?.current_sync?.status}
+                  <Badge variant="secondary" className={getStatusColor(progressData.status || '')}>
+                    {progressData.status}
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>{progressData?.current_step || dashboardData?.current_sync?.current_step}</span>
-                    <span>{progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage}%</span>
+                    <span>{progressData.current_step}</span>
+                    <span>{progressData.progress_percentage}%</span>
                   </div>
-                  <Progress value={progressData?.progress_percentage || dashboardData?.current_sync?.progress_percentage || 0} />
+                  <Progress value={progressData.progress_percentage || 0} />
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <div className="text-muted-foreground">Patients Found</div>
-                    <div className="font-semibold">{progressData?.patients_found || dashboardData?.current_sync?.patients_found || 0}</div>
+                    <div className="font-semibold">{progressData.patients_found || 0}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">Appointments Found</div>
-                    <div className="font-semibold">{progressData?.appointments_found || dashboardData?.current_sync?.appointments_found || 0}</div>
+                    <div className="font-semibold">{progressData.appointments_found || 0}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">Active Identified</div>
-                    <div className="font-semibold">{progressData?.active_patients_identified || dashboardData?.current_sync?.active_patients_identified || 0}</div>
+                    <div className="font-semibold">{progressData.active_patients_identified || 0}</div>
                   </div>
                   <div>
                     <div className="text-muted-foreground">Patients Stored</div>
-                    <div className="font-semibold">{progressData?.active_patients_stored || dashboardData?.current_sync?.active_patients_stored || 0}</div>
+                    <div className="font-semibold">{progressData.active_patients_stored || 0}</div>
                   </div>
                 </div>
 
-                {progressData?.errors && progressData.errors.length > 0 && (
+                {progressData.errors && progressData.errors.length > 0 && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
@@ -577,48 +504,33 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             </Card>
           )}
 
-          {/* Data Accuracy Warnings */}
-          {isSyncDataSuspicious() && (
-            <Alert variant="destructive">
+          {/* Stale Sync Warning */}
+          {dashboardData?.current_sync && !activeSyncId && !progressData && (
+            <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <div className="space-y-2">
-                  <strong>Sync Data May Be Outdated</strong>
-                                     <p>The last sync shows as being from {formatDistanceToNow(new Date(dashboardData!.last_sync!.completed_at), { addSuffix: true })}, but you mentioned a recent sync. This could indicate:</p>
-                   <ul className="list-disc list-inside text-sm space-y-1">
-                     <li>Backend data has not been updated yet</li>
-                     <li>Cache issues preventing fresh data display</li>
-                     <li>Sync completion may not have been properly recorded</li>
-                   </ul>
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" variant="outline" onClick={forceRefresh}>
-                      Force Data Refresh
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => {
-                        queryClient.clear()
-                        window.location.reload()
-                      }}
-                    >
-                      Clear Cache & Reload
-                    </Button>
-                  </div>
+                  <strong>Stale Sync State Detected</strong>
+                  <p>The backend reports a sync in progress, but no active monitoring was found. This may be leftover state from a previous sync.</p>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      addSyncLog('info', 'Clearing stale backend sync state...')
+                      // Force refresh to clear any stale state
+                      queryClient.clear()
+                      refetchDashboard()
+                      refetchHistory()
+                    }}
+                  >
+                    Clear Stale State
+                  </Button>
                 </div>
               </AlertDescription>
             </Alert>
           )}
 
-          {isDataStale() && (
-            <Alert>
-              <Clock className="h-4 w-4" />
-              <AlertDescription>
-                                 Dashboard data was last updated {formatDistanceToNow(new Date(dataUpdatedAt!), { addSuffix: true })}. 
-                 If you have recently performed a sync, consider refreshing the data.
-              </AlertDescription>
-            </Alert>
-          )}
+
 
           {/* Configuration Warning */}
           {logs.some(log => log.message.includes('Cliniko sync not enabled')) && (
@@ -879,12 +791,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                 <div className="flex items-center justify-between">
                   <CardTitle>Last Successful Sync</CardTitle>
                   <div className="flex items-center gap-2">
-                    {isSyncDataSuspicious() && (
-                      <Badge variant="destructive" className="text-xs">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        May be outdated
-                      </Badge>
-                    )}
+
                     <Badge variant="outline" className="text-xs">
                       Current time: {new Date().toLocaleString()}
                     </Badge>
