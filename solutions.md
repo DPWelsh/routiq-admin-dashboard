@@ -190,3 +190,5 @@ Search your frontend codebase for these patterns and fix them:
 ```
 
 **The main issue is simply missing `/v1` prefixes!** Add them and the 404 errors will disappear. 🎯 
+
+as
