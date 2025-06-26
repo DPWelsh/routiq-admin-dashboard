@@ -412,35 +412,53 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       return dashboardData.patient_stats;
     }
     
-    // Priority 2: Use patients summary if available
-    if (patientsSummary) {
-      console.log('📈 Using patients summary data:', patientsSummary);
+    // Priority 2: Combine clinikoStatus (for totals) with patientsSummary (for appointment estimates)
+    if (clinikoStatus && patientsSummary) {
+      console.log('📈 Combining cliniko status + patients summary:', { clinikoStatus, patientsSummary });
       
-      // Calculate estimated patient counts from averages
-      const totalActive = patientsSummary.total_active_patients || 0;
-      // Use type assertion since the API response has these fields even if TypeScript doesn't know yet
+      // Use type assertion since the API response has these fields
       const apiResponse = patientsSummary as PatientsApiResponse;
       const avgRecent = apiResponse.avg_recent_appointments || 0;
       const avgUpcoming = apiResponse.avg_upcoming_appointments || 0;
       
-      // Estimate: if avg > 0, assume most patients have appointments
-      // This is a rough estimate since we only have averages
+      // Use active patients count from clinikoStatus (which should be 36)
+      const activePatients = clinikoStatus.active_patients || 0;
+      
+      // Estimate appointment counts from averages
+      const estimatedWithRecent = avgRecent > 0 ? Math.round(activePatients * Math.min(avgRecent, 1)) : 0;
+      const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(activePatients * Math.min(avgUpcoming, 1)) : 0;
+      
+      return {
+        total_patients: clinikoStatus.total_patients || 0, // 648 from cliniko
+        active_patients: activePatients, // 36 from cliniko  
+        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
+        patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
+        last_sync_time: clinikoStatus.last_sync_time || patientsSummary.last_sync_date || null
+      };
+    }
+    
+    // Priority 3: Use patients summary alone if available
+    if (patientsSummary) {
+      console.log('📈 Using patients summary data only:', patientsSummary);
+      
+      const totalActive = patientsSummary.total_active_patients || 0;
+      const apiResponse = patientsSummary as PatientsApiResponse;
+      const avgRecent = apiResponse.avg_recent_appointments || 0;
+      const avgUpcoming = apiResponse.avg_upcoming_appointments || 0;
+      
       const estimatedWithRecent = avgRecent > 0 ? Math.round(totalActive * Math.min(avgRecent, 1)) : 0;
       const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(totalActive * Math.min(avgUpcoming, 1)) : 0;
       
-      // Get the TOTAL patient count from cliniko status (648), not just active (36)
-      const totalPatients = clinikoStatus?.total_patients || totalActive;
-      
       return {
-        total_patients: totalPatients, // Use 648 from cliniko status, not 36 from active summary
-        active_patients: totalActive, // Keep 36 for active patients
+        total_patients: totalActive,
+        active_patients: totalActive,
         patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
         patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
         last_sync_time: patientsSummary.last_sync_date || null
       };
     }
     
-    // Priority 3: Use basic cliniko status (no estimates)
+    // Priority 4: Use basic cliniko status (no estimates)
     if (clinikoStatus) {
       console.log('🔄 Using basic cliniko status (no appointment data available):', clinikoStatus);
       return {
