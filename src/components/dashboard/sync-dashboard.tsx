@@ -525,13 +525,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             size="sm"
             onClick={async () => {
               try {
-                const response = await fetch('/api/debug/organization-services')
-                const data = await response.json()
-                if (response.ok) {
-                  addSyncLog('info', `Services configured: ${JSON.stringify(data.services)}`)
-                } else {
-                  addSyncLog('error', `Service check failed: ${data.error}`)
-                }
+                if (!orgId) return
+                const authenticatedAPI = new RoutiqAPI(orgId)
+                const data = await authenticatedAPI.getServiceConfig(orgId)
+                addSyncLog('info', `Services configured: ${JSON.stringify(data.services)}`)
               } catch (error) {
                 addSyncLog('error', `Service check error: ${error}`)
               }

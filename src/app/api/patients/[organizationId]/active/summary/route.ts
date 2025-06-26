@@ -14,7 +14,7 @@ export const GET = withClerkOrganization(async (context, request: NextRequest) =
     const organizationId = pathSegments[pathSegments.indexOf('patients') + 1]
 
     // Build backend API URL
-    const backendUrl = `${BACKEND_API_URL}/api/v1/patients/${organizationId}/active/summary`
+    const backendUrl = `${BACKEND_API_URL}/api/v1/cliniko/active-patients-summary/${organizationId}`
 
     console.log(`[DEBUG] Proxying patients summary to: ${backendUrl}`)
 

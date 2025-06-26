@@ -446,7 +446,7 @@ export class RoutiqAPI {
     last_sync_date: string | null;
     timestamp: string;
   }> {
-    const response = await this.request(`/api/v1/patients/${organizationId}/active/summary`);
+    const response = await this.request(`/api/v1/cliniko/active-patients-summary/${organizationId}`);
     return response as {
       organization_id: string;
       total_active_patients: number;
@@ -524,7 +524,7 @@ export class RoutiqAPI {
    * Direct backend call for testing verification
    */
   async getNewSyncDashboard(organizationId: string): Promise<SyncDashboardDataResponse> {
-    return this.request(`/api/v1/sync/dashboard/${organizationId}`);
+    return this.request(`/api/v1/cliniko/sync/dashboard/${organizationId}`);
   }
 
   /**
@@ -532,7 +532,7 @@ export class RoutiqAPI {
    * Direct backend call for testing verification
    */
   async getSyncHistory(organizationId: string, limit: number = 10): Promise<SyncHistoryResponse> {
-    return this.request(`/api/v1/sync/history/${organizationId}?limit=${limit}`);
+    return this.request(`/api/v1/cliniko/sync-logs/${organizationId}?limit=${limit}`);
   }
 
   /**
@@ -725,8 +725,7 @@ export class RoutiqAPI {
    * Check organization service configuration
    */
   async getServiceConfig(organizationId: string): Promise<ServiceConfig> {
-    // The API route uses the current Clerk organization context, so organizationId is not needed in the URL
-    return this.request(`/api/debug/organization-services`);
+    return this.request(`/api/v1/admin/organization-services/${organizationId}`);
   }
 
   /**

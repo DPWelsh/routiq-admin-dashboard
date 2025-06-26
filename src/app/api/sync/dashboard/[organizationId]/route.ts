@@ -20,7 +20,7 @@ export async function GET(
     }
 
     const response = await fetch(
-      `https://routiq-backend-prod.up.railway.app/api/v1/sync/dashboard/${organizationId}`,
+      `https://routiq-backend-prod.up.railway.app/api/v1/cliniko/sync/dashboard/${organizationId}`,
       {
         method: 'GET',
         headers: {
