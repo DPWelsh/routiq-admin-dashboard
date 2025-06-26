@@ -443,6 +443,18 @@ export class RoutiqAPI {
   // ========================================
 
   /**
+   * Start ALL patients sync (backend team's recommended endpoint)
+   * This replaces the old active-only sync and ensures all patients are synced
+   * @param organizationId - The organization to sync
+   */
+  async startAllPatientsSync(organizationId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/api/v1/cliniko/sync-all/${organizationId}`, {
+      method: 'POST'
+    });
+  }
+
+  /**
+   * @deprecated Use startAllPatientsSync instead - this ensures ALL patients sync
    * Start sync with real-time progress tracking
    * Direct backend call for testing verification
    * @param organizationId - The organization to sync
@@ -502,6 +514,95 @@ export class RoutiqAPI {
    */
   createSyncEventSource(syncId: string): EventSource {
     return new EventSource(`${API_BASE}/api/v1/sync/stream/${syncId}`);
+  }
+
+  /**
+   * Get sync logs for real-time monitoring (backend team's recommended approach)
+   * This is the preferred method for polling sync progress every 2-3 seconds
+   */
+  async getSyncLogs(organizationId: string, limit: number = 1): Promise<{
+    logs: Array<{
+      id: string;
+      organization_id: string;
+      status: 'running' | 'completed' | 'failed';
+      operation_type: 'full_patients' | 'active_patients';
+      records_processed: number;
+      records_success: number;
+      started_at: string;
+      completed_at?: string;
+      created_at: string;
+      updated_at: string;
+      metadata?: string | object; // JSON string or parsed object with detailed progress
+    }>;
+  }> {
+    return this.request(`/api/v1/cliniko/sync-logs/${organizationId}?limit=${limit}`);
+  }
+
+  /**
+   * Monitor sync progress using the backend team's recommended pattern
+   * Polls sync-logs every 2 seconds until completion or timeout
+   */
+  async monitorSyncProgress(organizationId: string, maxWaitTime: number = 300000): Promise<{
+    status: 'completed' | 'failed' | 'timeout';
+    recordsProcessed: number;
+    recordsSuccess: number;
+    successRate: number;
+    startedAt: string;
+    completedAt?: string;
+    metadata: {
+      patients_found?: number;
+      patients_stored?: number;
+      sync_type?: string;
+      errors?: string[];
+    };
+  }> {
+    const pollInterval = 2000; // 2 seconds as recommended
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        const response = await this.getSyncLogs(organizationId, 1);
+        
+        if (response.logs?.length > 0) {
+          const latestLog = response.logs[0];
+                     const metadata = typeof latestLog.metadata === 'string' 
+            ? JSON.parse(latestLog.metadata) 
+            : (latestLog.metadata as object) || {};
+          
+          const progress = {
+            status: latestLog.status,
+            recordsProcessed: latestLog.records_processed || 0,
+            recordsSuccess: latestLog.records_success || 0,
+            successRate: latestLog.records_processed > 0 
+              ? (latestLog.records_success / latestLog.records_processed) * 100 
+              : 0,
+            startedAt: latestLog.started_at,
+            completedAt: latestLog.completed_at,
+            metadata
+          };
+          
+          if (latestLog.status === 'completed' || latestLog.status === 'failed') {
+            return { ...progress, status: latestLog.status };
+          }
+        }
+        
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        
+      } catch (error) {
+        console.error('Error polling sync progress:', error);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+    
+    return {
+      status: 'timeout' as const,
+      recordsProcessed: 0,
+      recordsSuccess: 0,
+      successRate: 0,
+      startedAt: new Date().toISOString(),
+      metadata: { errors: ['Sync monitoring timeout after 5 minutes'] }
+    };
   }
 
   // ========================================

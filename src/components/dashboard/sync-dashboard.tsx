@@ -73,7 +73,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['sync-progress', activeSyncId],
     queryFn: () => activeSyncId ? api.getSyncProgress(activeSyncId) : null,
     enabled: !!activeSyncId,
-    refetchInterval: activeSyncId ? 1000 : false,
+    refetchInterval: activeSyncId ? 2000 : false, // Backend team recommends 2-3 seconds
   })
 
   // Dedicated sync logger - only logs sync-related events
@@ -91,6 +91,44 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     
     setLogs(prev => [logEntry, ...prev.slice(0, 49)])
   }, [])
+
+  // Enhanced sync-logs monitoring (backend team recommendation)
+  const { data: syncLogsData } = useQuery({
+    queryKey: ['sync-logs', orgId, activeSyncId],
+    queryFn: () => orgId ? api.getSyncLogs(orgId, 1) : null,
+    enabled: !!activeSyncId && !!orgId,
+    refetchInterval: activeSyncId ? 2000 : false,
+  })
+
+  // Process sync logs for enhanced activity feed
+  useEffect(() => {
+    if (!syncLogsData?.logs?.[0] || !activeSyncId) return
+    
+    const latestLog = syncLogsData.logs[0]
+    if (latestLog.status === 'running' && latestLog.metadata) {
+      try {
+        const metadata = typeof latestLog.metadata === 'string' 
+          ? JSON.parse(latestLog.metadata) 
+          : latestLog.metadata || {}
+        
+        // Enhanced activity logging with metadata
+        if (metadata.current_step && metadata.current_step !== progressData?.current_step) {
+          addSyncLog('info', `📋 ${metadata.current_step}`, activeSyncId)
+        }
+        
+        if (metadata.patients_processed && metadata.patients_found) {
+          const percentage = Math.round((metadata.patients_processed / metadata.patients_found) * 100)
+          addSyncLog('info', `💾 Storing patients: ${metadata.patients_processed}/${metadata.patients_found} (${percentage}%)`, activeSyncId)
+        }
+        
+        if (metadata.patients_found && !progressData?.patients_found) {
+          addSyncLog('info', `👥 Found ${metadata.patients_found} patients to process`, activeSyncId)
+        }
+      } catch (error) {
+        // Metadata parsing failed, continue with basic progress
+      }
+    }
+  }, [syncLogsData, activeSyncId, progressData?.current_step, progressData?.patients_found, addSyncLog])
 
   // Enhanced refresh function
   const forceRefresh = useCallback(() => {
@@ -116,22 +154,54 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     }
   }, [dashboardData, activeSyncId, addSyncLog])
 
-  // Mutation to start sync
+  // Backend team's recommended sync approach - ALL patients sync
   const startSyncMutation = useMutation({
-    mutationFn: ({ organizationId, mode }: { organizationId: string; mode: 'full' | 'incremental' | 'quick' }) => {
-      addSyncLog('info', `Starting ${mode} sync...`)
-      return api.startSyncWithProgress(organizationId, mode)
+    mutationFn: ({ organizationId }: { organizationId: string }) => {
+      addSyncLog('info', 'Starting ALL patients sync (backend team recommendation)...')
+      return api.startAllPatientsSync(organizationId)
     },
     onSuccess: (data) => {
-      setActiveSyncId(data.sync_id)
-      addSyncLog('success', `${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync started`, data.sync_id)
-      addSyncLog('info', 'Real-time polling started for enhanced sync tracking', data.sync_id)
+      addSyncLog('success', `✅ ${data.message}`)
+      addSyncLog('info', '🔄 Real-time monitoring started (polling every 2 seconds)')
+      setActiveSyncId('monitoring') // Use monitoring state instead of actual sync_id
+      
+      // Start the backend team's recommended monitoring pattern
+      startSyncMonitoring()
     },
     onError: (error) => {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      addSyncLog('error', `Failed to start ${syncMode} sync: ${errorMessage}`)
+      addSyncLog('error', `❌ Failed to start sync: ${errorMessage}`)
     },
   })
+
+  // Backend team's monitoring pattern implementation
+  const startSyncMonitoring = async () => {
+    if (!orgId) return
+    
+    try {
+      const result = await api.monitorSyncProgress(orgId, 300000) // 5 minutes timeout
+      
+      if (result.status === 'completed') {
+        addSyncLog('success', `✅ Sync completed! ${result.recordsSuccess}/${result.recordsProcessed} patients synced (${result.successRate.toFixed(1)}% success rate)`)
+        if (result.metadata.patients_found) {
+          addSyncLog('info', `📊 Total patients processed: ${result.metadata.patients_found}`)
+        }
+      } else if (result.status === 'failed') {
+        addSyncLog('error', `❌ Sync failed after processing ${result.recordsProcessed} patients`)
+        if (result.metadata.errors) {
+          result.metadata.errors.forEach(error => addSyncLog('error', `Error: ${error}`))
+        }
+      } else if (result.status === 'timeout') {
+        addSyncLog('warning', '⏰ Sync monitoring timeout - sync may still be running')
+      }
+      
+      cleanup()
+      
+    } catch (error) {
+      addSyncLog('error', `❌ Monitoring failed: ${error}`)
+      cleanup()
+    }
+  }
 
   // Mutation to cancel sync
   const cancelSyncMutation = useMutation({
@@ -332,38 +402,30 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           ) : (
             <>
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">
-                    Sync Mode:
-                  </label>
-                  <Select
-                    value={syncMode}
-                    onValueChange={(value) => setSyncMode(value as 'full' | 'incremental' | 'quick')}
-                    disabled={startSyncMutation.isPending}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full">Full Sync (Recommended)</SelectItem>
-                      <SelectItem value="incremental">Incremental Sync</SelectItem>
-                      <SelectItem value="quick">Quick Sync</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="text-xs text-muted-foreground max-w-md">
-                  {syncMode === 'full' && '✅ Complete data synchronization with enhanced backend processing'}
-                  {syncMode === 'incremental' && '⚡ Sync only changes since last update'}
-                  {syncMode === 'quick' && '🚀 Fast sync for urgent updates'}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                                         <span className="text-sm font-medium text-blue-900">Backend Team&apos;s Recommended Sync:</span>
+                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800">ALL Patients</Badge>
+                  </div>
+                  <div className="text-xs text-blue-700">
+                    ✅ Syncs ALL patients from Cliniko (not just active ones)<br/>
+                    ✅ Real-time progress monitoring every 2 seconds<br/>
+                    ✅ Enhanced error handling and 100% success rate target
+                  </div>
                 </div>
               </div>
               <Button
-                onClick={() => orgId && startSyncMutation.mutate({ organizationId: orgId, mode: syncMode })}
+                onClick={() => orgId && startSyncMutation.mutate({ organizationId: orgId })}
                 disabled={startSyncMutation.isPending || !dashboardData?.sync_available}
                 size="sm"
+                className="bg-blue-600 hover:bg-blue-700"
               >
-                <Play className="h-4 w-4 mr-2" />
-                Start {syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} Sync
+                {startSyncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                🔄 Start ALL Patients Sync
               </Button>
             </>
           )}
@@ -450,53 +512,105 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       {/* Only show sync controls if Cliniko is properly configured */}
       {clinikoConfigured && clinikoConnected ? (
         <>
-          {/* Current Sync Progress - Only show if actively polling or fresh backend data */}
+          {/* Enhanced Real-Time Sync Progress (Backend Team Implementation) */}
           {progressData && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="h-5 w-5" />
-                  Current Sync Progress
+                  Live Sync Progress
                   <Badge variant="secondary" className={getStatusColor(progressData.status || '')}>
+                    {getStatusIcon(progressData.status)}
                     {progressData.status}
                   </Badge>
+                  {progressData.estimated_completion && (
+                    <Badge variant="outline" className="text-xs">
+                      ETA: {formatDistanceToNow(new Date(progressData.estimated_completion))}
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Enhanced Progress Bar */}
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>{progressData.current_step}</span>
-                    <span>{progressData.progress_percentage}%</span>
+                    <span className="flex items-center gap-2">
+                      <span className="animate-pulse">🔄</span>
+                      {progressData.current_step}
+                    </span>
+                    <span className="font-mono text-lg">{progressData.progress_percentage}%</span>
                   </div>
-                  <Progress value={progressData.progress_percentage || 0} />
+                  <Progress value={progressData.progress_percentage || 0} className="h-3" />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Step {progressData.current_step_number || 1} of {progressData.total_steps || 1}</span>
+                    <span>
+                      {progressData.started_at && `Started ${formatDistanceToNow(new Date(progressData.started_at), { addSuffix: true })}`}
+                    </span>
+                  </div>
                 </div>
                 
+                {/* Real-Time Metrics Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">Patients Found</div>
-                    <div className="font-semibold">{progressData.patients_found || 0}</div>
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-muted-foreground">👥 Patients Found</div>
+                    <div className="text-2xl font-bold text-blue-600">{progressData.patients_found || 0}</div>
+                    {progressData.patients_found > 0 && (
+                      <div className="text-xs text-blue-500">From Cliniko API</div>
+                    )}
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Appointments Found</div>
-                    <div className="font-semibold">{progressData.appointments_found || 0}</div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-muted-foreground">📅 Appointments</div>
+                    <div className="text-2xl font-bold text-green-600">{progressData.appointments_found || 0}</div>
+                    {progressData.appointments_found > 0 && (
+                      <div className="text-xs text-green-500">Recent & Upcoming</div>
+                    )}
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Active Identified</div>
-                    <div className="font-semibold">{progressData.active_patients_identified || 0}</div>
+                  <div className="text-center p-3 bg-orange-50 rounded-lg">
+                    <div className="text-muted-foreground">✅ Active Identified</div>
+                    <div className="text-2xl font-bold text-orange-600">{progressData.active_patients_identified || 0}</div>
+                    {progressData.patients_found > 0 && progressData.active_patients_identified > 0 && (
+                      <div className="text-xs text-orange-500">
+                        {Math.round((progressData.active_patients_identified / progressData.patients_found) * 100)}% of total
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Patients Stored</div>
-                    <div className="font-semibold">{progressData.active_patients_stored || 0}</div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <div className="text-muted-foreground">💾 Stored</div>
+                    <div className="text-2xl font-bold text-purple-600">{progressData.active_patients_stored || 0}</div>
+                    {progressData.active_patients_identified > 0 && progressData.active_patients_stored > 0 && (
+                      <div className="text-xs text-purple-500">
+                        {Math.round((progressData.active_patients_stored / progressData.active_patients_identified) * 100)}% complete
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Processing Rate Indicator */}
+                {progressData.active_patients_stored > 0 && progressData.started_at && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Processing Rate</span>
+                      <span className="font-mono">
+                        {(() => {
+                          const elapsed = (Date.now() - new Date(progressData.started_at).getTime()) / 1000
+                          const rate = Math.round(progressData.active_patients_stored / Math.max(elapsed, 1))
+                          return `${rate} patients/sec`
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {progressData.errors && progressData.errors.length > 0 && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      {progressData.errors.map((error, index) => (
-                        <div key={index}>{error}</div>
-                      ))}
+                      <div className="space-y-1">
+                        <strong>Sync Errors ({progressData.errors.length})</strong>
+                        {progressData.errors.map((error, index) => (
+                          <div key={index} className="text-sm font-mono">{error}</div>
+                        ))}
+                      </div>
                     </AlertDescription>
                   </Alert>
                 )}
