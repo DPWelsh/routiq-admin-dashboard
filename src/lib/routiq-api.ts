@@ -283,6 +283,15 @@ export class RoutiqAPI {
         if (!response.ok) {
           const errorText = await response.text();
           
+          // Handle rate limiting (429) with exponential backoff
+          if (response.status === 429 && attempt < retries) {
+            const retryAfter = response.headers.get('retry-after') || '30';
+            const waitTime = Math.min(parseInt(retryAfter) * 1000, 60000); // Max 60 seconds
+            console.warn(`Rate limited, waiting ${waitTime/1000}s before retry ${attempt + 1}...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          }
+          
           // Check if this is a connection error that might be retryable
           if (response.status === 500 && errorText.includes('connection already closed') && attempt < retries) {
             console.warn(`Database connection error on attempt ${attempt + 1}, retrying...`);

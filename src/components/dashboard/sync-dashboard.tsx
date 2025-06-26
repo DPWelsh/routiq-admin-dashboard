@@ -87,8 +87,13 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['sync-dashboard', orgId],
     queryFn: getSyncDashboard,
     enabled: !!orgId,
-    refetchInterval: activeSyncId ? 2000 : 10000,
-    staleTime: 5000,
+    refetchInterval: activeSyncId ? 5000 : 30000, // Reduced frequency to avoid rate limits
+    staleTime: 10000,
+    retry: (failureCount, error) => {
+      // Don't retry on 404 or 429 (rate limit)
+      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
+      return failureCount < 2;
+    }
   })
 
   // Query for sync history (Railway backend authenticated endpoint)
@@ -96,8 +101,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['sync-history', orgId],
     queryFn: getSyncHistory,
     enabled: !!orgId,
-    staleTime: 5000,
-    refetchInterval: 10000,
+    staleTime: 30000,
+    refetchInterval: 60000, // Reduced frequency - history doesn't change often
+    retry: (failureCount, error) => {
+      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
+      return failureCount < 2;
+    }
   })
 
   // Query for Cliniko status (supplementary data)
@@ -105,8 +114,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['cliniko-status', orgId],
     queryFn: getClinikoStatus,
     enabled: !!orgId,
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: 60000, // Reduced frequency
+    staleTime: 30000,
+    retry: (failureCount, error) => {
+      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
+      return failureCount < 2;
+    }
   })
 
   // Query for active patients summary (supplementary data)
@@ -114,8 +127,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['patients-summary', orgId],
     queryFn: getActivePatientsummary,
     enabled: !!orgId,
-    staleTime: 10000,
-    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchInterval: 60000, // Reduced frequency
+    retry: (failureCount, error) => {
+      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
+      return failureCount < 2;
+    }
   })
 
   // Query for current sync progress
@@ -369,10 +386,19 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     checkServiceConfig()
   }, [orgId])
 
-  // Check sync availability from dashboard data (Railway backend)
+  // Check sync availability from dashboard data (Railway backend) with fallbacks
   const syncAvailable = dashboardData?.sync_available || false
   const clinikoConfigured = syncAvailable || (clinikoStatus?.total_contacts !== undefined)
   const clinikoConnected = syncAvailable || (clinikoStatus?.active_patients !== undefined)
+  
+  // Use fallback data when some endpoints are not available
+  const effectivePatientStats = dashboardData?.patient_stats || {
+    total_patients: clinikoStatus?.total_contacts || 0,
+    active_patients: clinikoStatus?.active_patients || 0,
+    patients_with_upcoming: clinikoStatus?.upcoming_appointments || 0,
+    patients_with_recent: 0,
+    last_sync_time: null
+  }
 
   if (!orgId) {
     return (
@@ -552,10 +578,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Patients</p>
-                <p className="text-2xl font-bold">{dashboardData?.patient_stats?.total_patients || 0}</p>
-                {dashboardData?.patient_stats?.last_sync_time && (
+                <p className="text-2xl font-bold">{effectivePatientStats.total_patients}</p>
+                {effectivePatientStats.last_sync_time && (
                   <p className="text-xs text-muted-foreground">
-                    Last sync: {formatDistanceToNow(new Date(dashboardData.patient_stats.last_sync_time), { addSuffix: true })}
+                    Last sync: {formatDistanceToNow(new Date(effectivePatientStats.last_sync_time), { addSuffix: true })}
                   </p>
                 )}
               </div>
@@ -569,10 +595,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Active Patients</p>
-                <p className="text-2xl font-bold">{dashboardData?.patient_stats?.active_patients || 0}</p>
-                {dashboardData?.patient_stats?.total_patients && dashboardData.patient_stats.total_patients > 0 && (
+                <p className="text-2xl font-bold">{effectivePatientStats.active_patients}</p>
+                {effectivePatientStats.total_patients > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((dashboardData.patient_stats.active_patients / dashboardData.patient_stats.total_patients) * 100)}% of total
+                    {Math.round((effectivePatientStats.active_patients / effectivePatientStats.total_patients) * 100)}% of total
                   </p>
                 )}
               </div>
@@ -586,10 +612,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">With Upcoming</p>
-                <p className="text-2xl font-bold">{dashboardData?.patient_stats?.patients_with_upcoming || 0}</p>
-                {dashboardData?.patient_stats?.active_patients && dashboardData.patient_stats.active_patients > 0 && (
+                <p className="text-2xl font-bold">{effectivePatientStats.patients_with_upcoming}</p>
+                {effectivePatientStats.active_patients > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((dashboardData.patient_stats.patients_with_upcoming / dashboardData.patient_stats.active_patients) * 100)}% of active
+                    {Math.round((effectivePatientStats.patients_with_upcoming / effectivePatientStats.active_patients) * 100)}% of active
                   </p>
                 )}
               </div>
@@ -603,10 +629,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">With Recent</p>
-                <p className="text-2xl font-bold">{dashboardData?.patient_stats?.patients_with_recent || 0}</p>
-                {dashboardData?.patient_stats?.active_patients && dashboardData.patient_stats.active_patients > 0 && (
+                <p className="text-2xl font-bold">{effectivePatientStats.patients_with_recent}</p>
+                {effectivePatientStats.active_patients > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((dashboardData.patient_stats.patients_with_recent / dashboardData.patient_stats.active_patients) * 100)}% of active
+                    {Math.round((effectivePatientStats.patients_with_recent / effectivePatientStats.active_patients) * 100)}% of active
                   </p>
                 )}
               </div>
