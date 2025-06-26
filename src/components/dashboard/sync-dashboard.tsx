@@ -214,7 +214,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     return isSuspicious
   }, [dashboardData])
 
-  // Log data changes
+  // Log data changes and clear stale activeSyncId
   useEffect(() => {
     console.log('📊 [DATA CHANGE] Dashboard data changed:', dashboardData)
     if (dashboardData) {
@@ -224,8 +224,14 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       console.log('  - Has current sync:', !!dashboardData.current_sync)
       console.log('  - Has last sync:', !!dashboardData.last_sync)
       console.log('  - Patient stats:', dashboardData.patient_stats)
+      
+      // Clear activeSyncId if backend shows no current sync
+      if (!dashboardData.current_sync && activeSyncId) {
+        console.log('🧹 [CLEANUP] Backend shows no current sync, clearing stale activeSyncId:', activeSyncId)
+        setActiveSyncId(null)
+      }
     }
-  }, [dashboardData])
+  }, [dashboardData, activeSyncId])
 
   // Log history data changes
   useEffect(() => {
