@@ -364,7 +364,7 @@ export class RoutiqAPI {
     upcoming_appointments: number;
     message: string;
   }> {
-    return this.request(`/api/cliniko/status/${organizationId}`);
+    return this.request(`/api/v1/cliniko/status/${organizationId}`);
   }
 
   /**
@@ -403,7 +403,7 @@ export class RoutiqAPI {
     total_count: number;
     timestamp: string;
   }> {
-    let url = `/api/patients/${organizationId}/active`;
+    let url = `/api/v1/patients/${organizationId}/active`;
     
     if (params) {
       const searchParams = new URLSearchParams();
@@ -436,7 +436,7 @@ export class RoutiqAPI {
     last_sync_date: string | null;
     timestamp: string;
   }> {
-    const response = await this.request(`/api/patients/${organizationId}/active/summary`);
+    const response = await this.request(`/api/v1/patients/${organizationId}/active/summary`);
     return response as {
       organization_id: string;
       total_active_patients: number;
