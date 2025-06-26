@@ -43,19 +43,21 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
 
   // Query for dashboard data
-  const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard } = useQuery({
+  const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt } = useQuery({
     queryKey: ['sync-dashboard', orgId],
     queryFn: () => orgId ? api.getNewSyncDashboard(orgId) : null,
     enabled: !!orgId,
-    refetchInterval: activeSyncId ? 2000 : 30000, // More frequent updates during sync
+    refetchInterval: activeSyncId ? 2000 : 10000, // More frequent updates during sync, and faster refresh when not syncing
+    staleTime: 5000, // Consider data stale after 5 seconds
   })
 
   // Query for sync history
-  const { data: historyData, refetch: refetchHistory } = useQuery({
+  const { data: historyData, refetch: refetchHistory, dataUpdatedAt: historyUpdatedAt } = useQuery({
     queryKey: ['sync-history', orgId],
     queryFn: () => orgId ? api.getSyncHistory(orgId, 5) : null,
     enabled: !!orgId,
     staleTime: 5000, // Consider data stale after 5 seconds
+    refetchInterval: 10000, // Regular refresh to catch recent syncs
   })
 
   // Query for current sync progress
@@ -65,6 +67,42 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     enabled: !!activeSyncId,
     refetchInterval: activeSyncId ? 1000 : false, // Real-time updates during sync
   })
+
+  // Add data freshness validation
+  const isDataStale = useCallback(() => {
+    if (!dataUpdatedAt) return false
+    const staleThresholdMs = 60000 // 1 minute
+    return Date.now() - dataUpdatedAt > staleThresholdMs
+  }, [dataUpdatedAt])
+
+  // Check if sync data looks outdated based on current time
+  const isSyncDataSuspicious = useCallback(() => {
+    if (!dashboardData?.last_sync?.completed_at) return false
+    const syncTime = new Date(dashboardData.last_sync.completed_at)
+    const now = new Date()
+    const hoursSinceSync = (now.getTime() - syncTime.getTime()) / (1000 * 60 * 60)
+    
+    // Flag if the "last sync" is more than 12 hours old but we just did one
+    return hoursSinceSync > 12
+  }, [dashboardData?.last_sync?.completed_at])
+
+  const addLog = useCallback((level: string, message: string) => {
+    setLogs(prev => [{
+      timestamp: new Date().toISOString(),
+      level,
+      message
+    }, ...prev.slice(0, 49)]) // Keep last 50 logs
+  }, [])
+
+  // Enhanced refresh function
+  const forceRefresh = useCallback(() => {
+    addLog('info', 'Force refreshing all data...')
+    queryClient.removeQueries({ queryKey: ['sync-dashboard'] })
+    queryClient.removeQueries({ queryKey: ['sync-history'] })
+    refetchDashboard()
+    refetchHistory()
+    addLog('info', 'Data refresh completed')
+  }, [queryClient, refetchDashboard, refetchHistory, addLog])
 
   // Mutation to start sync
   const startSyncMutation = useMutation({
@@ -104,14 +142,6 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       addLog('error', `Failed to cancel sync: ${error}`)
     },
   })
-
-  const addLog = useCallback((level: string, message: string) => {
-    setLogs(prev => [{
-      timestamp: new Date().toISOString(),
-      level,
-      message
-    }, ...prev.slice(0, 49)]) // Keep last 50 logs
-  }, [])
 
   const cleanup = useCallback(() => {
     if (eventSource) {
@@ -219,7 +249,19 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Sync Dashboard</h2>
-          <p className="text-muted-foreground">Real-time patient data synchronization</p>
+          <div className="flex items-center gap-2">
+            <p className="text-muted-foreground">Real-time patient data synchronization</p>
+            {dataUpdatedAt && (
+              <Badge variant="outline" className="text-xs">
+                Data updated: {formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true })}
+              </Badge>
+            )}
+            {isDataStale() && (
+              <Badge variant="destructive" className="text-xs">
+                Data may be stale
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -236,6 +278,15 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isDashboardLoading ? 'animate-spin' : ''}`} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={forceRefresh}
+            disabled={isDashboardLoading}
+          >
+            <AlertCircle className="h-4 w-4 mr-2" />
+            Force Refresh
           </Button>
           {activeSyncId && (
             <Button
@@ -430,6 +481,49 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* Data Accuracy Warnings */}
+          {isSyncDataSuspicious() && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <strong>Sync Data May Be Outdated</strong>
+                                     <p>The last sync shows as being from {formatDistanceToNow(new Date(dashboardData!.last_sync!.completed_at), { addSuffix: true })}, but you mentioned a recent sync. This could indicate:</p>
+                   <ul className="list-disc list-inside text-sm space-y-1">
+                     <li>Backend data has not been updated yet</li>
+                     <li>Cache issues preventing fresh data display</li>
+                     <li>Sync completion may not have been properly recorded</li>
+                   </ul>
+                  <div className="flex gap-2 mt-3">
+                    <Button size="sm" variant="outline" onClick={forceRefresh}>
+                      Force Data Refresh
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => {
+                        queryClient.clear()
+                        window.location.reload()
+                      }}
+                    >
+                      Clear Cache & Reload
+                    </Button>
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {isDataStale() && (
+            <Alert>
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                                 Dashboard data was last updated {formatDistanceToNow(new Date(dataUpdatedAt!), { addSuffix: true })}. 
+                 If you have recently performed a sync, consider refreshing the data.
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Configuration Warning */}
@@ -688,7 +782,20 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           {dashboardData?.last_sync && (
             <Card>
               <CardHeader>
-                <CardTitle>Last Successful Sync</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Last Successful Sync</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {isSyncDataSuspicious() && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        May be outdated
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      Current time: {new Date().toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -701,6 +808,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                       {new Date(dashboardData.last_sync.completed_at).toLocaleDateString()} at{' '}
                       {new Date(dashboardData.last_sync.completed_at).toLocaleTimeString()}
                     </div>
+                    <div className="text-xs font-mono bg-muted px-1 rounded mt-1">
+                      UTC: {new Date(dashboardData.last_sync.completed_at).toISOString()}
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Records Processed</div>
@@ -708,12 +818,20 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                     <div className="text-xs text-muted-foreground mt-1">
                       Successfully synchronized
                     </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Rate: {Math.round(dashboardData.last_sync.records_success / 
+                        Math.max(1, (new Date(dashboardData.last_sync.completed_at).getTime() - 
+                         new Date(dashboardData.last_sync.started_at).getTime()) / 1000))} records/sec
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Status</div>
                     <Badge variant="default">{dashboardData.last_sync.status}</Badge>
                     <div className="text-xs text-muted-foreground mt-1">
                       Started: {formatDistanceToNow(new Date(dashboardData.last_sync.started_at), { addSuffix: true })}
+                    </div>
+                    <div className="text-xs font-mono bg-muted px-1 rounded mt-1">
+                      Started: {new Date(dashboardData.last_sync.started_at).toLocaleTimeString()}
                     </div>
                   </div>
                   <div>
@@ -729,6 +847,33 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                         (new Date(dashboardData.last_sync.completed_at).getTime() - 
                          new Date(dashboardData.last_sync.started_at).getTime()) / 1000
                       )} seconds total
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Age: {Math.round((Date.now() - new Date(dashboardData.last_sync.completed_at).getTime()) / 1000 / 60)} minutes old
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Sync Reliability Indicator */}
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Data Freshness</span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const ageMinutes = Math.round((Date.now() - new Date(dashboardData.last_sync.completed_at).getTime()) / 1000 / 60)
+                        if (ageMinutes < 10) {
+                          return <Badge variant="default" className="text-xs">Very Fresh</Badge>
+                        } else if (ageMinutes < 60) {
+                          return <Badge variant="secondary" className="text-xs">Fresh</Badge>
+                        } else if (ageMinutes < 360) {
+                          return <Badge variant="outline" className="text-xs">Moderate</Badge>
+                        } else {
+                          return <Badge variant="destructive" className="text-xs">Stale</Badge>
+                        }
+                      })()}
+                      <span className="text-xs text-muted-foreground">
+                        {Math.round((Date.now() - new Date(dashboardData.last_sync.completed_at).getTime()) / 1000 / 60)} min ago
+                      </span>
                     </div>
                   </div>
                 </div>
