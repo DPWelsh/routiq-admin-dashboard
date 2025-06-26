@@ -36,11 +36,6 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const queryClient = useQueryClient()
   const orgId = propOrgId || organization?.id
   
-  // Create authenticated API instance for this organization
-  const authenticatedAPI = useMemo(() => {
-    return orgId ? new RoutiqAPI(orgId) : api
-  }, [orgId])
-
   const [activeSyncId, setActiveSyncId] = useState<string | null>(null)
   const [eventSource, setEventSource] = useState<EventSource | null>(null)
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; level: string }>>([])
@@ -49,13 +44,35 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
   const [syncMode, setSyncMode] = useState<'full' | 'incremental' | 'quick'>('full')
 
+  // Create stable API functions
+  const getSyncDashboard = useCallback(async () => {
+    if (!orgId) return null
+    const authenticatedAPI = new RoutiqAPI(orgId)
+    return await authenticatedAPI.getNewSyncDashboard(orgId)
+  }, [orgId])
+
+  const getSyncHistory = useCallback(async () => {
+    if (!orgId) return null
+    const authenticatedAPI = new RoutiqAPI(orgId)
+    return await authenticatedAPI.getSyncHistory(orgId, 5)
+  }, [orgId])
+
+  const getSyncProgress = useCallback(async () => {
+    if (!activeSyncId || !orgId) return null
+    const authenticatedAPI = new RoutiqAPI(orgId)
+    return await authenticatedAPI.getSyncProgress(activeSyncId)
+  }, [activeSyncId, orgId])
+
+  const getSyncLogs = useCallback(async () => {
+    if (!orgId) return null
+    const authenticatedAPI = new RoutiqAPI(orgId)
+    return await authenticatedAPI.getSyncLogs(orgId, 1)
+  }, [orgId])
+
   // Query for dashboard data
   const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt } = useQuery({
     queryKey: ['sync-dashboard', orgId],
-    queryFn: async () => {
-      if (!orgId) return null
-      return await authenticatedAPI.getNewSyncDashboard(orgId)
-    },
+    queryFn: getSyncDashboard,
     enabled: !!orgId,
     refetchInterval: activeSyncId ? 2000 : 10000,
     staleTime: 5000,
@@ -64,10 +81,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Query for sync history
   const { data: historyData, refetch: refetchHistory, dataUpdatedAt: historyUpdatedAt } = useQuery({
     queryKey: ['sync-history', orgId],
-    queryFn: async () => {
-      if (!orgId) return null
-      return await authenticatedAPI.getSyncHistory(orgId, 5)
-    },
+    queryFn: getSyncHistory,
     enabled: !!orgId,
     staleTime: 5000,
     refetchInterval: 10000,
@@ -75,9 +89,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Query for current sync progress
   const { data: progressData, refetch: refetchProgress } = useQuery({
-    queryKey: ['sync-progress', activeSyncId],
-    queryFn: () => activeSyncId ? authenticatedAPI.getSyncProgress(activeSyncId) : null,
-    enabled: !!activeSyncId,
+    queryKey: ['sync-progress', activeSyncId, orgId],
+    queryFn: getSyncProgress,
+    enabled: !!activeSyncId && !!orgId,
     refetchInterval: activeSyncId ? 2000 : false, // Backend team recommends 2-3 seconds
   })
 
@@ -100,7 +114,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Enhanced sync-logs monitoring (backend team recommendation)
   const { data: syncLogsData } = useQuery({
     queryKey: ['sync-logs', orgId, activeSyncId],
-    queryFn: () => orgId ? authenticatedAPI.getSyncLogs(orgId, 1) : null,
+    queryFn: getSyncLogs,
     enabled: !!activeSyncId && !!orgId,
     refetchInterval: activeSyncId ? 2000 : false,
   })
@@ -161,11 +175,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Backend team's recommended sync approach - ALL patients sync
   const startSyncMutation = useMutation({
-    mutationFn: ({ organizationId }: { organizationId: string }) => {
+    mutationFn: async ({ organizationId }: { organizationId: string }) => {
       addSyncLog('info', 'Starting ALL patients sync (backend team recommendation)...')
-      return authenticatedAPI.startAllPatientsSync(organizationId)
+      const authenticatedAPI = new RoutiqAPI(organizationId)
+      return await authenticatedAPI.startAllPatientsSync(organizationId)
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { success: boolean; message: string }) => {
       addSyncLog('success', `✅ ${data.message}`)
       addSyncLog('info', '🔄 Real-time monitoring started (polling every 2 seconds)')
       setActiveSyncId('monitoring') // Use monitoring state instead of actual sync_id
@@ -173,7 +188,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       // Start the backend team's recommended monitoring pattern
       startSyncMonitoring()
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       const errorMessage = error instanceof Error ? error.message : String(error)
       addSyncLog('error', `❌ Failed to start sync: ${errorMessage}`)
     },
@@ -184,6 +199,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     if (!orgId) return
     
     try {
+      const authenticatedAPI = new RoutiqAPI(orgId)
       const result = await authenticatedAPI.monitorSyncProgress(orgId, 300000) // 5 minutes timeout
       
       if (result.status === 'completed') {
@@ -194,7 +210,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       } else if (result.status === 'failed') {
         addSyncLog('error', `❌ Sync failed after processing ${result.recordsProcessed} patients`)
         if (result.metadata.errors) {
-          result.metadata.errors.forEach(error => addSyncLog('error', `Error: ${error}`))
+          result.metadata.errors.forEach((error: string) => addSyncLog('error', `Error: ${error}`))
         }
       } else if (result.status === 'timeout') {
         addSyncLog('warning', '⏰ Sync monitoring timeout - sync may still be running')
@@ -202,7 +218,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       
       cleanup()
       
-    } catch (error) {
+    } catch (error: unknown) {
       addSyncLog('error', `❌ Monitoring failed: ${error}`)
       cleanup()
     }
@@ -210,12 +226,16 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Mutation to cancel sync
   const cancelSyncMutation = useMutation({
-    mutationFn: (syncId: string) => authenticatedAPI.cancelSync(syncId),
+    mutationFn: async (syncId: string) => {
+      if (!orgId) throw new Error('No organization ID')
+      const authenticatedAPI = new RoutiqAPI(orgId)
+      return await authenticatedAPI.cancelSync(syncId)
+    },
     onSuccess: () => {
       addSyncLog('warning', 'Sync cancelled', activeSyncId || undefined)
       cleanup()
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       addSyncLog('error', `Failed to cancel sync: ${error}`, activeSyncId || undefined)
     },
   })
@@ -283,6 +303,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     
     const checkServiceConfig = async () => {
       try {
+        const authenticatedAPI = new RoutiqAPI(orgId)
         const config = await authenticatedAPI.getServiceConfig(orgId)
         setServiceConfig(config)
         
@@ -362,12 +383,14 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               size="sm"
               onClick={async () => {
                 try {
+                  if (!orgId || !activeSyncId) return
+                  const authenticatedAPI = new RoutiqAPI(orgId)
                   const status = await authenticatedAPI.getSyncProgress(activeSyncId)
                   addSyncLog('info', `Debug - Status: ${status.status}, Progress: ${status.progress_percentage}%, Errors: ${status.errors?.length || 0}`, activeSyncId)
                   if (status.errors && status.errors.length > 0) {
-                    status.errors.forEach(error => addSyncLog('error', `Error detail: ${error}`, activeSyncId))
+                    status.errors.forEach((error: string) => addSyncLog('error', `Error detail: ${error}`, activeSyncId))
                   }
-                } catch (error) {
+                } catch (error: unknown) {
                   addSyncLog('error', `Debug failed: ${error}`, activeSyncId)
                 }
               }}
