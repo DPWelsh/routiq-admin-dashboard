@@ -48,100 +48,24 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt } = useQuery({
     queryKey: ['sync-dashboard', orgId],
     queryFn: async () => {
-      console.log('🔄 [SYNC DASHBOARD] Fetching dashboard data for org:', orgId)
-      console.log('🕐 [SYNC DASHBOARD] Current time:', new Date().toISOString())
-      
-      if (!orgId) {
-        console.log('❌ [SYNC DASHBOARD] No orgId provided, returning null')
-        return null
-      }
-      
-      try {
-        const result = await api.getNewSyncDashboard(orgId)
-        console.log('✅ [SYNC DASHBOARD] Dashboard data received:', result)
-        
-        if (result?.last_sync) {
-          console.log('📊 [SYNC DASHBOARD] Last sync details:')
-          console.log('  - Completed at:', result.last_sync.completed_at)
-          console.log('  - Started at:', result.last_sync.started_at)
-          console.log('  - Records processed:', result.last_sync.records_success)
-          console.log('  - Status:', result.last_sync.status)
-          
-          const syncTime = new Date(result.last_sync.completed_at)
-          const now = new Date()
-          const ageMinutes = Math.round((now.getTime() - syncTime.getTime()) / 1000 / 60)
-          const ageHours = Math.round(ageMinutes / 60)
-          
-          console.log('⏰ [SYNC DASHBOARD] Sync timing analysis:')
-          console.log('  - Sync completed:', syncTime.toISOString())
-          console.log('  - Current time:', now.toISOString())
-          console.log('  - Age in minutes:', ageMinutes)
-          console.log('  - Age in hours:', ageHours)
-          console.log('  - Is suspicious (>12h old):', ageHours > 12)
-        }
-        
-        if (result?.patient_stats) {
-          console.log('👥 [SYNC DASHBOARD] Patient stats:')
-          console.log('  - Total patients:', result.patient_stats.total_patients)
-          console.log('  - Active patients:', result.patient_stats.active_patients)
-          console.log('  - Last sync time:', result.patient_stats.last_sync_time)
-        }
-        
-        return result
-      } catch (error) {
-        console.error('❌ [SYNC DASHBOARD] Error fetching dashboard data:', error)
-        throw error
-      }
+      if (!orgId) return null
+      return await api.getNewSyncDashboard(orgId)
     },
     enabled: !!orgId,
-    refetchInterval: activeSyncId ? 2000 : 10000, // More frequent updates during sync, and faster refresh when not syncing
-    staleTime: 5000, // Consider data stale after 5 seconds
+    refetchInterval: activeSyncId ? 2000 : 10000,
+    staleTime: 5000,
   })
 
   // Query for sync history
   const { data: historyData, refetch: refetchHistory, dataUpdatedAt: historyUpdatedAt } = useQuery({
     queryKey: ['sync-history', orgId],
     queryFn: async () => {
-      console.log('📜 [SYNC HISTORY] Fetching sync history for org:', orgId)
-      console.log('🕐 [SYNC HISTORY] Current time:', new Date().toISOString())
-      
-      if (!orgId) {
-        console.log('❌ [SYNC HISTORY] No orgId provided, returning null')
-        return null
-      }
-      
-      try {
-        const result = await api.getSyncHistory(orgId, 5)
-        console.log('✅ [SYNC HISTORY] History data received:', result)
-        
-        if (result?.recent_syncs?.length > 0) {
-          console.log('📋 [SYNC HISTORY] Recent syncs analysis:')
-          result.recent_syncs.forEach((sync, index) => {
-            const syncTime = new Date(sync.started_at)
-            const ageMinutes = Math.round((Date.now() - syncTime.getTime()) / 1000 / 60)
-            console.log(`  ${index + 1}. ${sync.sync_id}:`)
-            console.log(`     - Started: ${sync.started_at}`)
-            console.log(`     - Status: ${sync.status}`)
-            console.log(`     - Age: ${ageMinutes} minutes`)
-            console.log(`     - Patients: ${sync.patients_processed || 'N/A'}`)
-          })
-        }
-        
-        console.log('📊 [SYNC HISTORY] Summary stats:')
-        console.log('  - Total syncs:', result?.total_syncs)
-        console.log('  - Successful syncs:', result?.successful_syncs)
-        console.log('  - Failed syncs:', result?.failed_syncs)
-        console.log('  - Last sync at:', result?.last_sync_at)
-        
-        return result
-      } catch (error) {
-        console.error('❌ [SYNC HISTORY] Error fetching history data:', error)
-        throw error
-      }
+      if (!orgId) return null
+      return await api.getSyncHistory(orgId, 5)
     },
     enabled: !!orgId,
-    staleTime: 5000, // Consider data stale after 5 seconds
-    refetchInterval: 10000, // Regular refresh to catch recent syncs
+    staleTime: 5000,
+    refetchInterval: 10000,
   })
 
   // Query for current sync progress
@@ -149,40 +73,40 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     queryKey: ['sync-progress', activeSyncId],
     queryFn: () => activeSyncId ? api.getSyncProgress(activeSyncId) : null,
     enabled: !!activeSyncId,
-    refetchInterval: activeSyncId ? 1000 : false, // Real-time updates during sync
+    refetchInterval: activeSyncId ? 1000 : false,
   })
 
-  const addLog = useCallback((level: string, message: string) => {
-    setLogs(prev => [{
-      timestamp: new Date().toISOString(),
+  // Dedicated sync logger - only logs sync-related events
+  const addSyncLog = useCallback((level: string, message: string, syncId?: string) => {
+    const timestamp = new Date().toISOString()
+    const logEntry = {
+      timestamp,
       level,
-      message
-    }, ...prev.slice(0, 49)]) // Keep last 50 logs
+      message: syncId ? `[${syncId}] ${message}` : message
+    }
+    
+    // Console logging for sync events only
+    const emoji = level === 'error' ? '❌' : level === 'success' ? '✅' : level === 'warning' ? '⚠️' : 'ℹ️'
+    console.log(`${emoji} [SYNC] ${timestamp} - ${logEntry.message}`)
+    
+    setLogs(prev => [logEntry, ...prev.slice(0, 49)])
   }, [])
 
   // Enhanced refresh function
   const forceRefresh = useCallback(() => {
-    console.log('🔄 [FORCE REFRESH] Starting force refresh...')
-    console.log('🕐 [FORCE REFRESH] Current time:', new Date().toISOString())
-    console.log('🔑 [FORCE REFRESH] Organization ID:', orgId)
+    addSyncLog('info', 'Force refreshing sync data...')
     
-    addLog('info', 'Force refreshing all data...')
-    
-    console.log('🗑️ [FORCE REFRESH] Removing cached queries...')
     queryClient.removeQueries({ queryKey: ['sync-dashboard'] })
     queryClient.removeQueries({ queryKey: ['sync-history'] })
     
-    console.log('📡 [FORCE REFRESH] Triggering manual refetch...')
     Promise.all([refetchDashboard(), refetchHistory()])
       .then(() => {
-        console.log('✅ [FORCE REFRESH] All queries refetched successfully')
-        addLog('info', 'Data refresh completed')
+        addSyncLog('success', 'Sync data refresh completed')
       })
       .catch((error) => {
-        console.error('❌ [FORCE REFRESH] Error during refresh:', error)
-        addLog('error', `Refresh failed: ${error}`)
+        addSyncLog('error', `Sync data refresh failed: ${error}`)
       })
-  }, [queryClient, refetchDashboard, refetchHistory, addLog, orgId])
+  }, [queryClient, refetchDashboard, refetchHistory, addSyncLog, orgId])
 
   // Add data freshness validation
   const isDataStale = useCallback(() => {
@@ -259,34 +183,17 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   // Mutation to start sync
   const startSyncMutation = useMutation({
     mutationFn: ({ organizationId, mode }: { organizationId: string; mode: 'full' | 'incremental' | 'quick' }) => {
-      console.log(`🚀 [SYNC START] Starting ${mode} sync for organization: ${organizationId}`)
-      addLog('info', `Starting ${mode} sync...`)
+      addSyncLog('info', `Starting ${mode} sync...`)
       return api.startSyncWithProgress(organizationId, mode)
     },
     onSuccess: (data) => {
       setActiveSyncId(data.sync_id)
-      console.log(`✅ [SYNC START] Sync started successfully with ID: ${data.sync_id}`)
-      console.log(`📊 [SYNC START] Sync mode: ${syncMode}`)
-      console.log(`🔄 [SYNC START] Status: ${data.status}`)
-      addLog('success', `${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync started with ID: ${data.sync_id}`)
-      
-      // Set up polling instead of Server-Sent Events for now
-      // const eventSource = api.createSyncEventSource(data.sync_id)
-      // eventSource.onmessage = (event) => {
-      //   const data = JSON.parse(event.data)
-      //   addLog('info', `Progress update: ${data.current_step} (${data.progress_percentage}%)`)
-      //   refetchProgress()
-      // }
-      // eventSource.onerror = () => {
-      //   addLog('error', 'Lost connection to sync stream')
-      // }
-      // setEventSource(eventSource)
-      addLog('info', 'Real-time polling started for enhanced sync tracking')
+      addSyncLog('success', `${syncMode.charAt(0).toUpperCase() + syncMode.slice(1)} sync started`, data.sync_id)
+      addSyncLog('info', 'Real-time polling started for enhanced sync tracking', data.sync_id)
     },
     onError: (error) => {
-      console.error('❌ [SYNC START] Sync start error:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      addLog('error', `Failed to start ${syncMode} sync: ${errorMessage}`)
+      addSyncLog('error', `Failed to start ${syncMode} sync: ${errorMessage}`)
     },
   })
 
@@ -294,11 +201,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const cancelSyncMutation = useMutation({
     mutationFn: (syncId: string) => api.cancelSync(syncId),
     onSuccess: () => {
-      addLog('warning', 'Sync cancelled')
+      addSyncLog('warning', 'Sync cancelled', activeSyncId || undefined)
       cleanup()
     },
     onError: (error) => {
-      addLog('error', `Failed to cancel sync: ${error}`)
+      addSyncLog('error', `Failed to cancel sync: ${error}`, activeSyncId || undefined)
     },
   })
 
@@ -311,28 +218,27 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     
     // Add a small delay to ensure backend has processed the completion
     setTimeout(() => {
-      console.log('Refreshing dashboard and history after sync completion...')
       refetchDashboard()
       refetchHistory()
       queryClient.invalidateQueries({ queryKey: ['sync-history'] })
       queryClient.invalidateQueries({ queryKey: ['sync-dashboard'] })
-    }, 2000) // 2 second delay
+    }, 2000)
   }, [eventSource, refetchDashboard, refetchHistory, queryClient])
 
   // Cleanup on unmount or sync completion
   useEffect(() => {
     if (progressData?.status === 'completed' || progressData?.status === 'failed') {
       if (progressData.status === 'completed') {
-        addLog('success', `Sync completed - ${progressData.active_patients_stored} patients stored`)
+        addSyncLog('success', `Sync completed - ${progressData.active_patients_stored} patients stored`, activeSyncId || undefined)
       } else {
         const errorDetails = progressData.errors && progressData.errors.length > 0 
           ? ` - ${progressData.errors.join(', ')}` 
           : ''
-        addLog('error', `Sync failed${errorDetails}`)
+        addSyncLog('error', `Sync failed${errorDetails}`, activeSyncId || undefined)
       }
       cleanup()
     }
-  }, [progressData?.status, progressData?.active_patients_stored, progressData?.errors, addLog, cleanup])
+  }, [progressData?.status, progressData?.active_patients_stored, progressData?.errors, addSyncLog, cleanup, activeSyncId])
 
   useEffect(() => {
     return () => {
@@ -432,7 +338,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               refetchHistory()
               queryClient.invalidateQueries({ queryKey: ['sync-history'] })
               queryClient.invalidateQueries({ queryKey: ['sync-dashboard'] })
-              addLog('info', 'Manual refresh triggered')
+              addSyncLog('info', 'Manual refresh triggered')
             }}
             disabled={isDashboardLoading}
           >
@@ -455,12 +361,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               onClick={async () => {
                 try {
                   const status = await api.getSyncProgress(activeSyncId)
-                  addLog('info', `Debug - Status: ${status.status}, Progress: ${status.progress_percentage}%, Errors: ${status.errors?.length || 0}`)
+                  addSyncLog('info', `Debug - Status: ${status.status}, Progress: ${status.progress_percentage}%, Errors: ${status.errors?.length || 0}`, activeSyncId)
                   if (status.errors && status.errors.length > 0) {
-                    status.errors.forEach(error => addLog('error', `Error detail: ${error}`))
+                    status.errors.forEach(error => addSyncLog('error', `Error detail: ${error}`, activeSyncId))
                   }
                 } catch (error) {
-                  addLog('error', `Debug failed: ${error}`)
+                  addSyncLog('error', `Debug failed: ${error}`, activeSyncId)
                 }
               }}
             >
@@ -475,12 +381,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                 const response = await fetch('/api/debug/organization-services')
                 const data = await response.json()
                 if (response.ok) {
-                  addLog('info', `Services configured: ${JSON.stringify(data.services)}`)
+                  addSyncLog('info', `Services configured: ${JSON.stringify(data.services)}`)
                 } else {
-                  addLog('error', `Service check failed: ${data.error}`)
+                  addSyncLog('error', `Service check failed: ${data.error}`)
                 }
               } catch (error) {
-                addLog('error', `Service check error: ${error}`)
+                addSyncLog('error', `Service check error: ${error}`)
               }
             }}
           >

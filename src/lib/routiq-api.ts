@@ -7,12 +7,7 @@
 // This ensures we're testing the actual backend that the main app will use
 const API_BASE = 'https://routiq-backend-prod.up.railway.app';
 
-// Debug logging to see what's happening
-if (typeof window !== 'undefined') {
-  console.log('🔧 [API CONFIG] Direct Railway backend testing');
-  console.log('🔧 [API CONFIG] API_BASE:', API_BASE);
-  console.log('🔧 [API CONFIG] Testing backend for main app verification');
-}
+// Direct Railway backend testing configuration
 
 // Organization constants
 export const ORGANIZATIONS = {
