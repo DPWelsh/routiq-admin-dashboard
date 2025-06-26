@@ -416,23 +416,14 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     if (clinikoStatus && patientsSummary) {
       console.log('📈 Combining cliniko status + patients summary:', { clinikoStatus, patientsSummary });
       
-      // Use type assertion since the API response has these fields
-      const apiResponse = patientsSummary as PatientsApiResponse;
-      const avgRecent = apiResponse.avg_recent_appointments || 0;
-      const avgUpcoming = apiResponse.avg_upcoming_appointments || 0;
-      
       // Use active patients count from clinikoStatus (which should be 36)
       const activePatients = clinikoStatus.active_patients || 0;
-      
-      // Estimate appointment counts from averages
-      const estimatedWithRecent = avgRecent > 0 ? Math.round(activePatients * Math.min(avgRecent, 1)) : 0;
-      const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(activePatients * Math.min(avgUpcoming, 1)) : 0;
       
       return {
         total_patients: clinikoStatus.total_patients || 0, // 648 from cliniko
         active_patients: activePatients, // 36 from cliniko  
-        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
-        patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
+        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments || 0, // Use actual API data
+        patients_with_recent: patientsSummary.patients_with_recent_appointments || 0, // Use actual API data
         last_sync_time: clinikoStatus.last_sync_time || patientsSummary.last_sync_date || null
       };
     }
@@ -442,18 +433,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       console.log('📈 Using patients summary data only:', patientsSummary);
       
       const totalActive = patientsSummary.total_active_patients || 0;
-      const apiResponse = patientsSummary as PatientsApiResponse;
-      const avgRecent = apiResponse.avg_recent_appointments || 0;
-      const avgUpcoming = apiResponse.avg_upcoming_appointments || 0;
-      
-      const estimatedWithRecent = avgRecent > 0 ? Math.round(totalActive * Math.min(avgRecent, 1)) : 0;
-      const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(totalActive * Math.min(avgUpcoming, 1)) : 0;
       
       return {
         total_patients: totalActive,
         active_patients: totalActive,
-        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
-        patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
+        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments || 0, // Use actual API data
+        patients_with_recent: patientsSummary.patients_with_recent_appointments || 0, // Use actual API data
         last_sync_time: patientsSummary.last_sync_date || null
       };
     }
