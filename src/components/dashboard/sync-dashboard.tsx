@@ -411,29 +411,16 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       };
     }
     
-    // Priority 3: Use basic cliniko status with realistic estimates
+    // Priority 3: Use basic cliniko status (no estimates)
     if (clinikoStatus) {
-      console.log('🔄 Using basic cliniko status with estimates:', clinikoStatus);
-      // Estimate appointment data based on active patients
-      const activeCount = clinikoStatus.active_patients || 0;
-      const estimatedUpcoming = Math.round(activeCount * 0.6); // ~60% of active patients likely have upcoming
-      const estimatedRecent = Math.round(activeCount * 0.8); // ~80% of active patients likely had recent
-      
-      const stats = {
+      console.log('🔄 Using basic cliniko status (no appointment data available):', clinikoStatus);
+      return {
         total_patients: clinikoStatus.total_patients || 0,
         active_patients: clinikoStatus.active_patients || 0,
-        patients_with_upcoming: estimatedUpcoming,
-        patients_with_recent: estimatedRecent,
+        patients_with_upcoming: 0, // No data available
+        patients_with_recent: 0, // No data available
         last_sync_time: clinikoStatus.last_sync_time || null
       };
-      
-      console.log('📊 Estimated appointment stats:', {
-        active: activeCount,
-        estimatedUpcoming,
-        estimatedRecent
-      });
-      
-      return stats;
     }
     
     // Fallback: Default empty state
