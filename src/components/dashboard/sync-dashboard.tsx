@@ -428,9 +428,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       const estimatedWithRecent = avgRecent > 0 ? Math.round(totalActive * Math.min(avgRecent, 1)) : 0;
       const estimatedWithUpcoming = avgUpcoming > 0 ? Math.round(totalActive * Math.min(avgUpcoming, 1)) : 0;
       
+      // Get the TOTAL patient count from cliniko status (648), not just active (36)
+      const totalPatients = clinikoStatus?.total_patients || totalActive;
+      
       return {
-        total_patients: totalActive,
-        active_patients: totalActive,
+        total_patients: totalPatients, // Use 648 from cliniko status, not 36 from active summary
+        active_patients: totalActive, // Keep 36 for active patients
         patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments ?? estimatedWithUpcoming,
         patients_with_recent: patientsSummary.patients_with_recent_appointments ?? estimatedWithRecent,
         last_sync_time: patientsSummary.last_sync_date || null
