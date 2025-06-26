@@ -3,6 +3,17 @@
  * Integrates with Cliniko Active Patients Backend
  */
 
+// Declare Clerk types for window object
+declare global {
+  interface Window {
+    Clerk?: {
+      session?: {
+        getToken(): Promise<string>;
+      };
+    };
+  }
+}
+
 // Direct Railway backend calls for testing/verification dashboard
 // This ensures we're testing the actual backend that the main app will use
 const API_BASE = 'https://routiq-backend-prod.up.railway.app';
@@ -227,21 +238,45 @@ export interface ClinikoConnectionTest {
 
 export class RoutiqAPI {
   private baseUrl: string;
-  private defaultHeaders: HeadersInit;
+  private organizationId?: string;
 
   constructor(organizationId?: string) {
     this.baseUrl = API_BASE;
-    this.defaultHeaders = {
-      'Content-Type': 'application/json',
-      ...(organizationId && { 'x-organization-id': organizationId })
-    };
+    this.organizationId = organizationId;
+  }
+
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    try {
+      // Use window.Clerk if available (client-side)
+      if (typeof window !== 'undefined' && window.Clerk?.session) {
+        const token = await window.Clerk.session.getToken();
+        return {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+          ...(this.organizationId && { 'x-organization-id': this.organizationId })
+        };
+      }
+      
+      // Fallback to basic headers
+      return {
+        'Content-Type': 'application/json',
+        ...(this.organizationId && { 'x-organization-id': this.organizationId })
+      };
+    } catch (error) {
+      console.warn('Failed to get auth token, using basic headers:', error);
+      return {
+        'Content-Type': 'application/json',
+        ...(this.organizationId && { 'x-organization-id': this.organizationId })
+      };
+    }
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}, retries = 2): Promise<T> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        const authHeaders = await this.getAuthHeaders();
         const response = await fetch(`${this.baseUrl}${endpoint}`, {
-          headers: { ...this.defaultHeaders, ...options.headers },
+          headers: { ...authHeaders, ...options.headers },
           ...options
         });
 
