@@ -733,7 +733,7 @@ export class RoutiqAPI {
    */
   async testClinikoConnection(organizationId: string): Promise<ClinikoConnectionTest> {
     try {
-      const data = await this.request(`/api/cliniko/test-connection/${organizationId}`);
+      const data = await this.request(`/api/v1/cliniko/test-connection/${organizationId}`);
       const response = data as {
         success?: boolean;
         total_patients_available?: number;
