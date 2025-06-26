@@ -388,16 +388,16 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Check sync availability from dashboard data (Railway backend) with fallbacks
   const syncAvailable = dashboardData?.sync_available || false
-  const clinikoConfigured = syncAvailable || (clinikoStatus?.total_contacts !== undefined)
+  const clinikoConfigured = syncAvailable || (clinikoStatus?.total_patients !== undefined)
   const clinikoConnected = syncAvailable || (clinikoStatus?.active_patients !== undefined)
   
   // Use fallback data when some endpoints are not available
   const effectivePatientStats = dashboardData?.patient_stats || {
-    total_patients: clinikoStatus?.total_contacts || 0,
+    total_patients: clinikoStatus?.total_patients || 0,
     active_patients: clinikoStatus?.active_patients || 0,
-    patients_with_upcoming: clinikoStatus?.upcoming_appointments || 0,
+    patients_with_upcoming: 0, // Not available in basic status
     patients_with_recent: 0,
-    last_sync_time: null
+    last_sync_time: clinikoStatus?.last_sync_time || null
   }
 
   if (!orgId) {
@@ -562,7 +562,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               </div>
               {clinikoConnected && (
                 <div className="text-right">
-                  <p className="text-sm font-medium">{clinikoStatus?.total_contacts || 0} Total Contacts</p>
+                  <p className="text-sm font-medium">{clinikoStatus?.total_patients || 0} Total Patients</p>
                   <p className="text-sm text-muted-foreground">{clinikoStatus?.active_patients || 0} Active Patients</p>
                 </div>
               )}

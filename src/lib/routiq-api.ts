@@ -368,10 +368,11 @@ export class RoutiqAPI {
   async getClinikoStatus(organizationId: string): Promise<{
     organization_id: string;
     last_sync_time?: string;
-    total_contacts: number;
+    total_patients: number;
     active_patients: number;
-    upcoming_appointments: number;
-    message: string;
+    synced_patients: number;
+    sync_percentage: number;
+    status: string;
   }> {
     return this.request(`/api/v1/cliniko/status/${organizationId}`);
   }
