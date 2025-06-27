@@ -308,68 +308,213 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
         </CardContent>
       </Card>
 
-      {/* Patient Statistics */}
+      {/* Patient Statistics - Enhanced with richer data */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Total Patients */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Patients</p>
                 <p className="text-2xl font-bold">{summary?.total_patients || 0}</p>
-                {summary?.last_sync_time && (
-                  <p className="text-xs text-muted-foreground">
-                    Last sync: {formatDistanceToNow(new Date(summary.last_sync_time), { addSuffix: true })}
-                  </p>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {summary?.sync_percentage !== undefined && (
+                    <Badge variant="outline" className="text-xs">
+                      {summary.sync_percentage}% synced
+                    </Badge>
+                  )}
+                  {summary?.last_sync_time && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(summary.last_sync_time), { addSuffix: true })}
+                    </p>
+                  )}
+                </div>
               </div>
               <Users className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
+        {/* Active Patients */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Active Patients</p>
                 <p className="text-2xl font-bold">{summary?.active_patients || 0}</p>
-                {summary?.total_patients && summary.total_patients > 0 && (
+                <div className="flex items-center gap-2 mt-1">
+                  {summary?.total_patients && summary.total_patients > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {Math.round((summary.active_patients / summary.total_patients) * 100)}% of total
+                    </Badge>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    {Math.round((summary.active_patients / summary.total_patients) * 100)}% of total
+                    {summary?.activity_status || 'Unknown'}
                   </p>
-                )}
+                </div>
               </div>
               <Activity className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
+        {/* Upcoming Appointments */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Upcoming Appointments</p>
                 <p className="text-2xl font-bold">{summary?.patients_with_upcoming || 0}</p>
-                <p className="text-xs text-muted-foreground">
-                  {summary?.total_upcoming_appointments || 0} total appointments
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="text-xs">
+                    {summary?.total_upcoming_appointments || 0} total
+                  </Badge>
+                  {summary?.avg_upcoming_per_patient !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                      {summary.avg_upcoming_per_patient} avg/patient
+                    </p>
+                  )}
+                </div>
               </div>
               <Calendar className="h-8 w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
+        {/* Recent Appointments */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Recent Appointments</p>
                 <p className="text-2xl font-bold">{summary?.patients_with_recent || 0}</p>
-                <p className="text-xs text-muted-foreground">
-                  {summary?.total_recent_appointments || 0} total appointments
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="text-xs">
+                    {summary?.total_recent_appointments || 0} total
+                  </Badge>
+                  {summary?.avg_recent_per_patient !== undefined && (
+                    <p className="text-xs text-muted-foreground">
+                      {summary.avg_recent_per_patient} avg/patient
+                    </p>
+                  )}
+                </div>
               </div>
               <Clock className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Advanced Metrics */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Appointment Analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Appointments</span>
+                <span className="font-semibold">{summary?.total_all_appointments || 0}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Average per Patient</span>
+                <span className="font-semibold">{summary?.avg_total_per_patient || 0}</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Upcoming</span>
+                  <span>{summary?.total_upcoming_appointments || 0}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Recent</span>
+                  <span>{summary?.total_recent_appointments || 0}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sync Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Synced Patients</span>
+                <span className="font-semibold">{summary?.synced_patients || 0}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Sync Coverage</span>
+                <Badge variant={
+                  summary?.sync_percentage === 100 ? "default" : 
+                  (summary?.sync_percentage || 0) >= 90 ? "secondary" : "destructive"
+                }>
+                  {summary?.sync_percentage || 0}%
+                </Badge>
+              </div>
+              {summary?.last_sync_time && (
+                <div className="space-y-1">
+                  <span className="text-sm text-muted-foreground">Last Sync</span>
+                  <p className="text-sm font-medium">
+                    {formatDistanceToNow(new Date(summary.last_sync_time), { addSuffix: true })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(summary.last_sync_time).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Patient Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Activity Status</span>
+                <Badge variant={summary?.activity_status === 'Active' ? "default" : "secondary"}>
+                  {summary?.activity_status || 'Unknown'}
+                </Badge>
+              </div>
+              
+              {/* Patient Engagement Breakdown */}
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Patient Engagement</div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>With Upcoming</span>
+                    <span>{summary?.patients_with_upcoming || 0} patients</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>With Recent</span>
+                    <span>{summary?.patients_with_recent || 0} patients</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Currently Active</span>
+                    <span>{summary?.active_patients || 0} patients</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Engagement Rate */}
+              {summary?.total_patients && summary.total_patients > 0 && (
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Engagement Rate</span>
+                    <span className="font-semibold">
+                      {Math.round(
+                        ((summary.patients_with_upcoming + summary.patients_with_recent) / 
+                         summary.total_patients) * 100
+                      )}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
