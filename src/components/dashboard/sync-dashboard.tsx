@@ -80,18 +80,29 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const summary = dashboardData?.summary
   const recentActivity = dashboardData?.recent_activity || []
   
+  // Track the most recent completed sync to avoid false completions
+  const mostRecentCompleted = recentActivity
+    .filter(activity => activity.status === 'completed')
+    .sort((a, b) => new Date(b.completed_at || b.started_at).getTime() - new Date(a.completed_at || a.started_at).getTime())[0]
+  
   // Check if we have an active sync
   useEffect(() => {
     if (!recentActivity.length) return
     
     const runningSyncs = recentActivity.filter(activity => activity.status === 'running')
-    if (runningSyncs.length > 0 && !activeSyncId) {
-      setActiveSyncId(runningSyncs[0].id)
-      addSyncLog('info', `Found active sync: ${runningSyncs[0].id}`)
-    } else if (runningSyncs.length === 0 && activeSyncId) {
+    
+    if (runningSyncs.length > 0) {
+      // Found a running sync
+      if (!activeSyncId || activeSyncId === 'monitoring') {
+        setActiveSyncId(runningSyncs[0].id)
+        addSyncLog('info', `Active sync detected: ${runningSyncs[0].id}`)
+      }
+    } else if (runningSyncs.length === 0 && activeSyncId && activeSyncId !== 'monitoring') {
+      // No running syncs found, and we have a real sync ID (not 'monitoring')
       addSyncLog('success', `Sync completed`)
       setActiveSyncId(null)
     }
+    // If activeSyncId is 'monitoring', we wait for the backend to show the actual sync
   }, [recentActivity, activeSyncId])
 
   // Sync logging
@@ -139,10 +150,10 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       addSyncLog('success', `Sync started: ${response.message || 'Success'}`)
       setActiveSyncId('monitoring')
       
-      // Refresh data after a delay
-      setTimeout(() => {
-        refetchDashboard()
-      }, 2000)
+      // Refresh data multiple times to catch the sync appearing in the activity
+      setTimeout(() => refetchDashboard(), 1000)
+      setTimeout(() => refetchDashboard(), 3000)
+      setTimeout(() => refetchDashboard(), 5000)
     },
     onError: (error: Error) => {
       addSyncLog('error', `Failed to start sync: ${error.message}`)
@@ -374,15 +385,22 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             <p className="text-muted-foreground text-center py-4">No recent activity</p>
           ) : (
             <div className="space-y-3">
-              {recentActivity.slice(0, 10).map((activity) => (
-                <div key={activity.id} className="flex items-center gap-3 p-3 border rounded-lg">
+              {recentActivity.slice(0, 10).map((activity, index) => (
+                <div key={activity.id} className={`flex items-center gap-3 p-3 border rounded-lg ${
+                  activity.status === 'running' ? 'border-blue-200 bg-blue-50' : ''
+                }`}>
                   <div className={`w-2 h-2 rounded-full ${getStatusColor(activity.status)}`} />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium">{activity.description}</p>
+                      <p className="font-medium">
+                        {activity.description}
+                        {activity.status === 'running' && index === 0 && (
+                          <span className="ml-2 text-xs text-blue-600 font-normal">• Active</span>
+                        )}
+                      </p>
                       <div className="flex items-center gap-2">
                         {getStatusIcon(activity.status)}
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant={activity.status === 'running' ? 'default' : 'outline'} className="text-xs">
                           {activity.status}
                         </Badge>
                       </div>
@@ -392,6 +410,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
                       {activity.completed_at && (
                         <span className="ml-4">
                           Completed {formatDistanceToNow(new Date(activity.completed_at), { addSuffix: true })}
+                        </span>
+                      )}
+                      {activity.status === 'running' && !activity.completed_at && (
+                        <span className="ml-4 text-blue-600">
+                          Started {formatDistanceToNow(new Date(activity.started_at), { addSuffix: true })}
                         </span>
                       )}
                     </div>
