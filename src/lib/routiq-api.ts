@@ -257,6 +257,7 @@ export interface DashboardResponse {
     sync_percentage: number;
     integration_status: string;
     activity_status: string;
+    engagement_rate: number;
     generated_at: string;
   };
   recent_activity: Array<{

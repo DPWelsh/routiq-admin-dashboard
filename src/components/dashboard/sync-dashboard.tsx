@@ -363,11 +363,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Upcoming Appointments</p>
+                <p className="text-sm font-medium text-muted-foreground">Patients with Upcoming</p>
                 <p className="text-2xl font-bold">{summary?.patients_with_upcoming || 0}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-xs">
-                    {summary?.total_upcoming_appointments || 0} total
+                    {summary?.total_upcoming_appointments || 0} appointments
                   </Badge>
                   {summary?.avg_upcoming_per_patient !== undefined && (
                     <p className="text-xs text-muted-foreground">
@@ -386,11 +386,11 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Recent Appointments</p>
+                <p className="text-sm font-medium text-muted-foreground">Patients with Recent</p>
                 <p className="text-2xl font-bold">{summary?.patients_with_recent || 0}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-xs">
-                    {summary?.total_recent_appointments || 0} total
+                    {summary?.total_recent_appointments || 0} appointments
                   </Badge>
                   {summary?.avg_recent_per_patient !== undefined && (
                     <p className="text-xs text-muted-foreground">
@@ -502,15 +502,12 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
               </div>
 
               {/* Engagement Rate */}
-              {summary?.total_patients && summary.total_patients > 0 && (
+              {summary?.engagement_rate !== undefined && (
                 <div className="pt-2 border-t">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Engagement Rate</span>
                     <span className="font-semibold">
-                      {Math.round(
-                        ((summary.patients_with_upcoming + summary.patients_with_recent) / 
-                         summary.total_patients) * 100
-                      )}%
+                      {summary.engagement_rate}%
                     </span>
                   </div>
                 </div>
