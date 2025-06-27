@@ -12,13 +12,16 @@ import {
   TimerIcon, BarChart3, HelpCircle, ArrowUpRight, ArrowDownRight, Target,
   MessageCircle as MessageIcon, UserPlus, CalendarCheck,
   Heart, Smile, Frown, Meh, Zap, TrendingDown,
-  CheckCircle, XCircle, AlertCircle, Pause, Play
+      CheckCircle, XCircle, AlertCircle, Pause, Play,
+    Building2, RefreshCw as Sync, Settings
 } from 'lucide-react'
 import { AnimatedGradientText, BlurFade, ShimmerButton, NumberTicker, LoadingSpinner } from "@/components/magicui"
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useClerkOrganization } from '@/hooks/useClerkOrganization'
 import { UpcomingAppointments } from '@/components/features/patients/upcoming-appointments'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 
 // Tremor imports for interactive charts
 import { 
@@ -374,7 +377,7 @@ export default function DashboardPage() {
                   <div className="mb-6">
                     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl text-[#1a1c12]">
                       Welcome back, {user?.firstName || 'User'}
-            </h1>
+                    </h1>
                     <p className="mt-3 text-lg text-[#472424]">
                       Your Routiq dashboard • {currentTime.toLocaleDateString('en-US', { 
                         weekday: 'long', 
@@ -382,9 +385,9 @@ export default function DashboardPage() {
                         month: 'long', 
                         day: 'numeric' 
                       })}
-            </p>
-          </div>
-        </BlurFade>
+                    </p>
+                  </div>
+                </BlurFade>
 
                 {/* Hero Metrics - Brand Colors */}
                 <BlurFade delay={0.3}>
@@ -399,8 +402,8 @@ export default function DashboardPage() {
                           </div>
                           <span className="text-2xl text-[#7d312d]">$</span>
                         </Flex>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
 
                     <Card className="bg-white/20 backdrop-blur-sm border-white/30">
                       <CardContent className="p-4">
@@ -412,8 +415,8 @@ export default function DashboardPage() {
                           </div>
                           <Smile className="h-6 w-6 text-[#7d312d]" />
                         </Flex>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
 
                     <Card className="bg-white/20 backdrop-blur-sm border-white/30">
                       <CardContent className="p-4">
@@ -425,8 +428,8 @@ export default function DashboardPage() {
                           </div>
                           <Zap className="h-6 w-6 text-[#7d312d]" />
                         </Flex>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
 
                     <Card className="bg-white/20 backdrop-blur-sm border-white/30">
                       <CardContent className="p-4">
@@ -438,8 +441,8 @@ export default function DashboardPage() {
                           </div>
                           <TimerIcon className="h-6 w-6 text-[#7d312d]" />
                         </Flex>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
                   </Grid>
                 </BlurFade>
               </div>
@@ -449,179 +452,169 @@ export default function DashboardPage() {
 
         {/* Main Dashboard Content with seamless gradient transition */}
         <div className="relative bg-gradient-to-br from-blue-50/50 via-white to-gray-50/30">
-            <BlurFade delay={0.4}>
-              <div className="space-y-4 px-4 py-6 lg:px-6">
-                {/* Charts - Side by Side */}
-                <Grid numItems={1} numItemsLg={2} className="gap-4">
-                  <Card className="bg-white/95 backdrop-blur-sm">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                        Revenue Trends
-                      </CardTitle>
-                      <CardDescription className="text-xs">Monthly revenue and conversation volume</CardDescription>
+          <BlurFade delay={0.4}>
+            <div className="space-y-4 px-4 py-6 lg:px-6">
+              {/* Quick Actions */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Multi-Organization Sync</CardTitle>
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                    <CardContent className="pl-2">
-                      <AreaChart
-                        className="h-48 mt-4"
-                        data={revenueData}
-                        index="month"
-                        categories={["revenue"]}
-                        colors={["blue"]}
-                        valueFormatter={valueFormatter}
-                        showLegend={false}
-                        showYAxis={true}
-                        showXAxis={true}
-                        showGridLines={false}
-                        yAxisWidth={80}
-                        autoMinValue={true}
-                      />
+                  <CardContent>
+                    <div className="text-2xl font-bold">New!</div>
+                    <p className="text-xs text-muted-foreground">
+                      Choose any organization and sync patient data
+                    </p>
+                    <Link href="/dashboard/sync">
+                      <Button className="w-full mt-3" size="sm">
+                        <Sync className="h-4 w-4 mr-2" />
+                        Open Sync Dashboard
+                      </Button>
+                    </Link>
                   </CardContent>
                 </Card>
-                
-                  <Card className="bg-white/95 backdrop-blur-sm">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <MessageCircle className="h-4 w-4 text-blue-600" />
-                        Conversation Channels
-                      </CardTitle>
-                      <CardDescription className="text-xs">Daily conversation volume by channel</CardDescription>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active Patients</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
-                    <CardContent className="pl-2">
-                      <BarChart
-                        className="h-48 mt-4"
-                        data={conversationTrends}
-                        index="date"
-                        categories={["phone", "chat", "email"]}
-                        colors={["blue", "emerald", "violet"]}
-                        valueFormatter={conversationFormatter}
-                        showLegend={false}
-                        showYAxis={true}
-                        showXAxis={true}
-                        showGridLines={false}
-                        yAxisWidth={80}
-                        autoMinValue={true}
-                        customTooltip={ConversationTooltip}
-                      />
-                  </CardContent>
-                </Card>
-                </Grid>
-
-                {/* Upcoming Appointments Widget */}
-                <Grid numItems={1} numItemsLg={2} className="gap-4">
-                  <UpcomingAppointments 
-                    limit={5}
-                    showRefresh={true}
-                    compact={true}
-                    onPatientClick={handlePatientClick}
-                    title="Today's Upcoming Appointments"
-                  />
-                  
-                  <Card className="bg-white/95 backdrop-blur-sm">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2 text-sm">
-                        <Activity className="h-4 w-4 text-emerald-600" />
-                        Quick Actions
-                      </CardTitle>
-                      <CardDescription className="text-xs">Common tasks and shortcuts</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div 
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        onClick={() => router.push('/dashboard/patients')}
-                      >
-                        <Users className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">View All Patients</p>
-                          <p className="text-xs text-gray-500">Manage patient records and appointments</p>
-                        </div>
-                      </div>
-                      
-                      <div 
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        onClick={() => router.push('/dashboard/conversations')}
-                      >
-                        <MessageCircle className="h-5 w-5 text-green-600" />
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">View Conversations</p>
-                          <p className="text-xs text-gray-500">Check recent patient communications</p>
-                        </div>
-                      </div>
-                      
-                      <div 
-                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                        onClick={() => router.push('/dashboard/upcoming-appointments')}
-                      >
-                        <Calendar className="h-5 w-5 text-purple-600" />
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">All Upcoming Appointments</p>
-                          <p className="text-xs text-gray-500">View complete appointment schedule</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                {/* Key Metrics Cards - Compact */}
-                <Grid numItems={2} numItemsSm={2} numItemsLg={4} className="gap-3">
-                  <Card className="hover:shadow-lg transition-shadow bg-white/95 backdrop-blur-sm">
-                    <CardContent className="p-4">
-                      <Flex alignItems="start">
-                        <div className="flex-1">
-                          <Text className="text-gray-600 text-xs">Total Conversations</Text>
-                          <Metric className="text-2xl font-bold text-gray-900">90</Metric>
-                          <Text className="text-gray-500 text-xs">All time conversations</Text>
-                    </div>
-                        <MessageCircle className="h-6 w-6 text-blue-600" />
-                      </Flex>
-                  </CardContent>
-                </Card>
-                
-                  <Card className="hover:shadow-lg transition-shadow bg-white/95 backdrop-blur-sm">
-                    <CardContent className="p-4">
-                      <Flex alignItems="start">
-                        <div className="flex-1">
-                          <Text className="text-gray-600 text-xs">Active Patients</Text>
-                          <Metric className="text-2xl font-bold text-emerald-600">61</Metric>
-                          <Text className="text-gray-500 text-xs">Recent & upcoming appointments</Text>
-                    </div>
-                        <Users className="h-6 w-6 text-emerald-600" />
-                      </Flex>
+                  <CardContent>
+                    <div className="text-2xl font-bold">--</div>
+                    <p className="text-xs text-muted-foreground">
+                      Select organization to view
+                    </p>
+                    <Link href="/dashboard/patients">
+                      <Button variant="outline" className="w-full mt-3" size="sm">
+                        View Patients
+                      </Button>
+                    </Link>
                   </CardContent>
                 </Card>
 
-                  <Card className="hover:shadow-lg transition-shadow bg-white/95 backdrop-blur-sm">
-                    <CardContent className="p-4">
-                      <Flex alignItems="start">
-                        <div className="flex-1">
-                          <Text className="text-gray-600 text-xs">Total Messages</Text>
-                          <Metric className="text-2xl font-bold text-blue-600">1,805</Metric>
-                          <Text className="text-gray-500 text-xs">All platforms combined</Text>
-                      </div>
-                        <MessageIcon className="h-6 w-6 text-blue-600" />
-                      </Flex>
-                    </CardContent>
-                  </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Upcoming Appointments</CardTitle>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">--</div>
+                    <p className="text-xs text-muted-foreground">
+                      Select organization to view
+                    </p>
+                    <Link href="/dashboard/upcoming-appointments">
+                      <Button variant="outline" className="w-full mt-3" size="sm">
+                        View Appointments
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
 
-                  <Card 
-                    className="hover:shadow-lg transition-shadow bg-white/95 backdrop-blur-sm cursor-pointer"
-                    onClick={() => router.push('/dashboard/upcoming-appointments')}
-                  >
-                    <CardContent className="p-4">
-                      <Flex alignItems="start">
-                        <div className="flex-1">
-                          <Text className="text-gray-600 text-xs">Upcoming Appointments</Text>
-                          <Metric className="text-2xl font-bold text-orange-600">12</Metric>
-                          <Text className="text-gray-500 text-xs">Scheduled appointments</Text>
-                      </div>
-                        <CalendarCheck className="h-6 w-6 text-orange-600" />
-                      </Flex>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Conversations</CardTitle>
+                    <MessageIcon className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">--</div>
+                    <p className="text-xs text-muted-foreground">
+                      Chat performance metrics
+                    </p>
+                    <Link href="/dashboard/conversations">
+                      <Button variant="outline" className="w-full mt-3" size="sm">
+                        View Conversations
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Performance</CardTitle>
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">--</div>
+                    <p className="text-xs text-muted-foreground">
+                      Response time analytics
+                    </p>
+                    <Link href="/dashboard/performance">
+                      <Button variant="outline" className="w-full mt-3" size="sm">
+                        View Analytics
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Settings</CardTitle>
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">Config</div>
+                    <p className="text-xs text-muted-foreground">
+                      Manage integrations and settings
+                    </p>
+                    <Link href="/dashboard/settings">
+                      <Button variant="outline" className="w-full mt-3" size="sm">
+                        Open Settings
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
               </div>
+
+              {/* Recent Activity Placeholder */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Getting Started</CardTitle>
+                  <CardDescription>
+                    Use the multi-organization sync dashboard to manage patient data across all your clinics
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
+                      <Building2 className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">1. Select Organization</p>
+                      <p className="text-sm text-muted-foreground">
+                        Choose which organization you want to manage from the dropdown
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100">
+                      <Sync className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">2. Start Sync</p>
+                      <p className="text-sm text-muted-foreground">
+                        Trigger patient data synchronization with your Cliniko system
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100">
+                      <Activity className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">3. Monitor Progress</p>
+                      <p className="text-sm text-muted-foreground">
+                        Watch real-time sync progress and view patient statistics
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </BlurFade>
-                </div>
+        </div>
       </div>
     </TooltipProvider>
   )

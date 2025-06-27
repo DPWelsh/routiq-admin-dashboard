@@ -17,9 +17,11 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Settings,
 } from 'lucide-react'
 import { RoutiqAPI, type DashboardResponse } from '@/lib/routiq-api'
 import { formatDistanceToNow } from 'date-fns'
+import { OrganizationSelector } from '@/components/organization/organization-selector'
 
 interface SyncDashboardProps {
   organizationId?: string
@@ -28,22 +30,37 @@ interface SyncDashboardProps {
 export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps) {
   const { organization } = useOrganization()
   const queryClient = useQueryClient()
-  const orgId = propOrgId || organization?.id
+  
+  // State for selected organization
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
+    propOrgId || organization?.id || null
+  )
+  const [selectedOrgName, setSelectedOrgName] = useState<string>('')
   
   const [activeSyncId, setActiveSyncId] = useState<string | null>(null)
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; level: string }>>([])
 
+  // Update selected org when prop or current org changes
+  useEffect(() => {
+    if (propOrgId) {
+      setSelectedOrgId(propOrgId)
+    } else if (organization?.id && !selectedOrgId) {
+      setSelectedOrgId(organization.id)
+      setSelectedOrgName(organization.name || '')
+    }
+  }, [propOrgId, organization, selectedOrgId])
+
   // Single API call to get all dashboard data
   const getDashboardData = useCallback(async (): Promise<DashboardResponse | null> => {
-    if (!orgId) return null
+    if (!selectedOrgId) return null
     
-    const response = await fetch(`/api/dashboard/${orgId}`)
+    const response = await fetch(`/api/dashboard/${selectedOrgId}`)
     if (!response.ok) {
       throw new Error(`Failed to fetch dashboard data: ${response.status}`)
     }
     
     return await response.json()
-  }, [orgId])
+  }, [selectedOrgId])
 
   // Main dashboard data query
   const { 
@@ -52,9 +69,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     refetch: refetchDashboard, 
     error: dashboardError 
   } = useQuery({
-    queryKey: ['dashboard-unified', orgId],
+    queryKey: ['dashboard-unified', selectedOrgId],
     queryFn: getDashboardData,
-    enabled: !!orgId,
+    enabled: !!selectedOrgId,
     refetchInterval: activeSyncId ? 5000 : 30000,
     staleTime: 10000,
   })
@@ -88,12 +105,34 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     setLogs(prev => [logEntry, ...prev.slice(0, 49)])
   }, [])
 
-  // Start sync mutation
+  // Handle organization change
+  const handleOrgChange = useCallback((orgId: string, orgName: string) => {
+    setSelectedOrgId(orgId)
+    setSelectedOrgName(orgName)
+    setActiveSyncId(null) // Clear any active sync from previous org
+    setLogs([]) // Clear logs from previous org
+    addSyncLog('info', `Switched to organization: ${orgName}`)
+  }, [addSyncLog])
+
+  // Start sync mutation - now uses the new consolidated endpoint
   const startSyncMutation = useMutation({
     mutationFn: async ({ organizationId }: { organizationId: string }) => {
-      addSyncLog('info', 'Starting sync...')
+      addSyncLog('info', 'Starting sync using new consolidated endpoint...')
       const authenticatedAPI = new RoutiqAPI(organizationId)
-      return await authenticatedAPI.triggerClinikoSync(organizationId)
+      
+      // Use the new consolidated sync endpoint
+      const response = await fetch(`https://routiq-backend-prod.up.railway.app/api/v1/cliniko/sync/${organizationId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Sync failed: ${response.status}`)
+      }
+      
+      return await response.json()
     },
     onSuccess: (data) => {
       const response = data as { message?: string };
@@ -129,11 +168,14 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     }
   }
 
-  if (!orgId) {
+  if (!selectedOrgId) {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">Organization not found</p>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Select Organization</h3>
+            <OrganizationSelector onOrgChange={handleOrgChange} />
+          </div>
         </CardContent>
       </Card>
     )
@@ -141,25 +183,49 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   if (dashboardError) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <Alert>
-            <AlertDescription>
-              Error loading dashboard data: {dashboardError.message}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {/* Organization Selector */}
+        <Card>
+          <CardContent className="p-4">
+            <OrganizationSelector 
+              selectedOrgId={selectedOrgId}
+              onOrgChange={handleOrgChange}
+            />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <Alert>
+              <AlertDescription>
+                Error loading dashboard data for {selectedOrgName}: {dashboardError.message}
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {/* Organization Selector */}
+      <Card>
+        <CardContent className="p-4">
+          <OrganizationSelector 
+            selectedOrgId={selectedOrgId}
+            onOrgChange={handleOrgChange}
+          />
+        </CardContent>
+      </Card>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Sync Dashboard</h2>
-          <p className="text-muted-foreground">Real-time patient data synchronization</p>
+          <p className="text-muted-foreground">
+            Real-time patient data synchronization for {selectedOrgName}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -173,7 +239,7 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
           </Button>
           {!activeSyncId ? (
             <Button
-              onClick={() => orgId && startSyncMutation.mutate({ organizationId: orgId })}
+              onClick={() => selectedOrgId && startSyncMutation.mutate({ organizationId: selectedOrgId })}
               disabled={startSyncMutation.isPending}
               className="bg-blue-600 hover:bg-blue-700"
             >
