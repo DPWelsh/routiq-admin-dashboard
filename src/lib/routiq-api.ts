@@ -237,6 +237,45 @@ export interface ClinikoConnectionTest {
   error?: string;
 }
 
+export interface DashboardResponse {
+  success: boolean;
+  organization_id: string;
+  summary: {
+    organization_id: string;
+    total_patients: number;
+    active_patients: number;
+    patients_with_upcoming: number;
+    patients_with_recent: number;
+    total_upcoming_appointments: number;
+    total_recent_appointments: number;
+    total_all_appointments: number;
+    avg_upcoming_per_patient: number;
+    avg_recent_per_patient: number;
+    avg_total_per_patient: number;
+    last_sync_time: string;
+    synced_patients: number;
+    sync_percentage: number;
+    integration_status: string;
+    activity_status: string;
+    generated_at: string;
+  };
+  recent_activity: Array<{
+    id: string;
+    source_system: string;
+    operation_type: string;
+    status: string;
+    records_processed: number;
+    records_success: number;
+    records_failed: number;
+    started_at: string;
+    completed_at: string | null;
+    activity_type: string;
+    description: string;
+    minutes_ago: number;
+  }>;
+  timestamp: string;
+}
+
 export class RoutiqAPI {
   private baseUrl: string;
   private organizationId?: string;
@@ -346,9 +385,15 @@ export class RoutiqAPI {
 
   /**
    * Trigger Cliniko patient sync for organization
-   * Available when backend environment is configured
+   * This will sync ALL patients from Cliniko (not just active ones)
    */
-  async triggerClinikoSync(organizationId: string): Promise<SyncTriggerResponse> {
+  async triggerClinikoSync(organizationId: string): Promise<{
+    success: boolean;
+    message: string;
+    organization_id: string;
+    result: object;
+    timestamp: string;
+  }> {
     return this.request(`/api/v1/cliniko/sync/${organizationId}`, {
       method: 'POST'
     });
@@ -363,19 +408,21 @@ export class RoutiqAPI {
   }
 
   /**
-   * Get Cliniko sync status for organization
-   * Uses Next.js API proxy to avoid CORS issues
+   * Get comprehensive Cliniko sync status for an organization
+   * Can include logs and health check data
    */
-  async getClinikoStatus(organizationId: string): Promise<{
-    organization_id: string;
-    last_sync_time?: string;
-    total_patients: number;
-    active_patients: number;
-    synced_patients: number;
-    sync_percentage: number;
-    status: string;
-  }> {
-    return this.request(`/api/v1/cliniko/status/${organizationId}`);
+  async getClinikoStatus(organizationId: string, options?: {
+    include_logs?: boolean;
+    include_health_check?: boolean;
+    logs_limit?: number;
+  }): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (options?.include_logs) params.append('include_logs', 'true');
+    if (options?.include_health_check) params.append('include_health_check', 'true');
+    if (options?.logs_limit) params.append('logs_limit', options.logs_limit.toString());
+    
+    const url = `/api/v1/cliniko/status/${organizationId}${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.request(url);
   }
 
   /**
@@ -436,26 +483,27 @@ export class RoutiqAPI {
   }
 
   /**
-   * Get active patients summary for organization
-   * Uses Next.js API proxy to avoid CORS issues
+   * Get patient statistics and/or detailed patient data
    */
-  async getActivePatientsummary(organizationId: string): Promise<{
-    organization_id: string;
-    total_active_patients: number;
-    patients_with_recent_appointments: number;
-    patients_with_upcoming_appointments: number;
-    last_sync_date: string | null;
-    timestamp: string;
-  }> {
-    const response = await this.request(`/api/v1/cliniko/active-patients-summary/${organizationId}`);
-    return response as {
-      organization_id: string;
-      total_active_patients: number;
-      patients_with_recent_appointments: number;
-      patients_with_upcoming_appointments: number;
-      last_sync_date: string | null;
-      timestamp: string;
-    };
+  async getClinikoPatientStats(organizationId: string, options?: {
+    include_details?: boolean;
+    with_appointments_only?: boolean;
+    limit?: number;
+  }): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (options?.include_details) params.append('include_details', 'true');
+    if (options?.with_appointments_only) params.append('with_appointments_only', 'true');
+    if (options?.limit) params.append('limit', options.limit.toString());
+    
+    const url = `/api/v1/cliniko/patients/${organizationId}/stats${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.request(url);
+  }
+
+  /**
+   * @deprecated Use getClinikoPatientStats instead
+   */
+  async getActivePatientsummary(organizationId: string): Promise<unknown> {
+    return this.getClinikoPatientStats(organizationId);
   }
 
   /**
@@ -766,6 +814,13 @@ export class RoutiqAPI {
         error: error instanceof Error ? error.message : 'Network error' 
       };
     }
+  }
+
+  /**
+   * Get complete dashboard data from single endpoint
+   */
+  async getDashboardData(organizationId: string): Promise<DashboardResponse> {
+    return await this.request<DashboardResponse>(`/api/v1/dashboard/${organizationId}`)
   }
 }
 

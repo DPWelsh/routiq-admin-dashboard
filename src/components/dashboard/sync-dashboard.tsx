@@ -24,7 +24,7 @@ import {
   Loader2,
   Database
 } from 'lucide-react'
-import { api, RoutiqAPI } from '@/lib/routiq-api'
+import { api, RoutiqAPI, type DashboardResponse } from '@/lib/routiq-api'
 import { formatDistanceToNow } from 'date-fns'
 import { type ServiceConfig, type ClinikoConnectionTest } from '@/lib/routiq-api'
 
@@ -58,105 +58,82 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
   const [isTestingConnection, setIsTestingConnection] = useState(false)
   const [syncMode, setSyncMode] = useState<'full' | 'incremental' | 'quick'>('full')
 
-  // Create stable API functions - using authenticated Railway backend endpoints
-  const getSyncDashboard = useCallback(async () => {
+  // Single API call to get all dashboard data
+  const getDashboardData = useCallback(async (): Promise<DashboardResponse | null> => {
     if (!orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getNewSyncDashboard(orgId)
+    
+    const response = await fetch(`/api/dashboard/${orgId}`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch dashboard data: ${response.status}`)
+    }
+    
+    return await response.json()
   }, [orgId])
 
-  const getSyncHistory = useCallback(async () => {
-    if (!orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getSyncHistory(orgId, 10)
-  }, [orgId])
-
-  const getClinikoStatus = useCallback(async () => {
-    if (!orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getClinikoStatus(orgId)
-  }, [orgId])
-
-  const getActivePatientsummary = useCallback(async () => {
-    if (!orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getActivePatientsummary(orgId)
-  }, [orgId])
-
-  const getSyncProgress = useCallback(async () => {
-    if (!activeSyncId || !orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getSyncProgress(activeSyncId)
-  }, [activeSyncId, orgId])
-
-  const getSyncLogs = useCallback(async () => {
-    if (!orgId) return null
-    const authenticatedAPI = new RoutiqAPI(orgId)
-    return await authenticatedAPI.getSyncLogs(orgId, 1)
-  }, [orgId])
-
-  // Query for sync dashboard data (Railway backend authenticated endpoint)
-  const { data: dashboardData, isLoading: isDashboardLoading, refetch: refetchDashboard, dataUpdatedAt, error: dashboardError } = useQuery({
-    queryKey: ['sync-dashboard', orgId],
-    queryFn: getSyncDashboard,
+  // Main dashboard data query - replaces all previous separate queries
+  const { 
+    data: dashboardData, 
+    isLoading: isDashboardLoading, 
+    refetch: refetchDashboard, 
+    error: dashboardError 
+  } = useQuery({
+    queryKey: ['dashboard-unified', orgId],
+    queryFn: getDashboardData,
     enabled: !!orgId,
-    refetchInterval: activeSyncId ? 5000 : 30000, // Reduced frequency to avoid rate limits
+    refetchInterval: activeSyncId ? 5000 : 30000,
     staleTime: 10000,
     retry: (failureCount, error) => {
-      // Don't retry on 404 or 429 (rate limit)
       if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
       return failureCount < 2;
     }
   })
 
-  // Query for sync history (Railway backend authenticated endpoint)
-  const { data: historyData, refetch: refetchHistory, dataUpdatedAt: historyUpdatedAt } = useQuery({
-    queryKey: ['sync-history', orgId],
-    queryFn: getSyncHistory,
-    enabled: !!orgId,
-    staleTime: 30000,
-    refetchInterval: 60000, // Reduced frequency - history doesn't change often
-    retry: (failureCount, error) => {
-      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
-      return failureCount < 2;
+  // Extract data from unified response
+  const summary = dashboardData?.summary
+  const recentActivity = dashboardData?.recent_activity || []
+  
+  // Computed values based on unified dashboard data
+  const clinikoConnected = summary?.integration_status === 'Connected'
+  const effectivePatientStats = {
+    total_patients: summary?.total_patients || 0,
+    active_patients: summary?.active_patients || 0,
+    patients_with_upcoming_appointments: summary?.patients_with_upcoming || 0,
+    patients_with_recent_appointments: summary?.patients_with_recent || 0,
+    last_sync_time: summary?.last_sync_time || null,
+    last_sync_date: summary?.last_sync_time || null,
+  }
+  
+  // Legacy compatibility object for existing code
+  const clinikoStatus = {
+    total_patients: summary?.total_patients || 0,
+    active_patients: summary?.active_patients || 0,
+    sync_percentage: summary?.sync_percentage || 0,
+    integration_status: summary?.integration_status || 'Not Connected',
+  }
+  
+  const patientsSummary = {
+    total_active_patients: summary?.active_patients || 0,
+    patients_with_upcoming_appointments: summary?.patients_with_upcoming || 0,
+    patients_with_recent_appointments: summary?.patients_with_recent || 0,
+    last_sync_date: summary?.last_sync_time || null,
+  }
+  
+  // Process recent activity to find active syncs
+  useEffect(() => {
+    if (!recentActivity.length) return
+    
+    // Check if there's a currently running sync
+    const runningSyncs = recentActivity.filter(activity => activity.status === 'running')
+    if (runningSyncs.length > 0 && !activeSyncId) {
+      setActiveSyncId(runningSyncs[0].id)
+      addSyncLog('info', `Found active sync: ${runningSyncs[0].id}`)
+    } else if (runningSyncs.length === 0 && activeSyncId) {
+      addSyncLog('success', `Sync ${activeSyncId} completed`)
+      setActiveSyncId(null)
     }
-  })
+  }, [recentActivity, activeSyncId])
 
-  // Query for Cliniko status (supplementary data)
-  const { data: clinikoStatus, refetch: refetchStatus } = useQuery({
-    queryKey: ['cliniko-status', orgId],
-    queryFn: getClinikoStatus,
-    enabled: !!orgId,
-    refetchInterval: 60000, // Reduced frequency
-    staleTime: 30000,
-    retry: (failureCount, error) => {
-      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
-      return failureCount < 2;
-    }
-  })
-
-  // Query for active patients summary (supplementary data)
-  const { data: patientsSummary, refetch: refetchPatients } = useQuery({
-    queryKey: ['patients-summary', orgId],
-    queryFn: getActivePatientsummary,
-    enabled: !!orgId,
-    staleTime: 30000,
-    refetchInterval: 60000, // Reduced frequency
-    retry: (failureCount, error) => {
-      if (error?.message?.includes('404') || error?.message?.includes('429')) return false;
-      return failureCount < 2;
-    }
-  })
-
-  // Query for current sync progress
-  const { data: progressData, refetch: refetchProgress } = useQuery({
-    queryKey: ['sync-progress', activeSyncId, orgId],
-    queryFn: getSyncProgress,
-    enabled: !!activeSyncId && !!orgId,
-    refetchInterval: activeSyncId ? 2000 : false, // Backend team recommends 2-3 seconds
-  })
-
-  // Dedicated sync logger - only logs sync-related events
+  // Dedicated sync logger
   const addSyncLog = useCallback((level: string, message: string, syncId?: string) => {
     const timestamp = new Date().toISOString()
     const logEntry = {
@@ -165,99 +142,68 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
       message: syncId ? `[${syncId}] ${message}` : message
     }
     
-    // Console logging for sync events only
     const emoji = level === 'error' ? '❌' : level === 'success' ? '✅' : level === 'warning' ? '⚠️' : 'ℹ️'
     console.log(`${emoji} [SYNC] ${timestamp} - ${logEntry.message}`)
     
     setLogs(prev => [logEntry, ...prev.slice(0, 49)])
   }, [])
 
-  // Enhanced sync-logs monitoring (backend team recommendation)
-  const { data: syncLogsData } = useQuery({
-    queryKey: ['sync-logs', orgId, activeSyncId],
-    queryFn: getSyncLogs,
-    enabled: !!activeSyncId && !!orgId,
-    refetchInterval: activeSyncId ? 2000 : false,
-  })
+  // Legacy sync functions for mutations (keep only essential ones)
+  const getSyncProgress = useCallback(async () => {
+    if (!activeSyncId || !orgId) return null
+    const authenticatedAPI = new RoutiqAPI(orgId)
+    return await authenticatedAPI.getSyncProgress(activeSyncId)
+  }, [activeSyncId, orgId])
 
-  // Process sync logs for enhanced activity feed
-  useEffect(() => {
-    if (!syncLogsData?.logs?.[0] || !activeSyncId) return
-    
-    const latestLog = syncLogsData.logs[0]
-    if (latestLog.status === 'running' && latestLog.metadata) {
-      try {
-        const metadata = typeof latestLog.metadata === 'string' 
-          ? JSON.parse(latestLog.metadata) 
-          : latestLog.metadata || {}
-        
-        // Enhanced activity logging with metadata
-        if (metadata.current_step) {
-          addSyncLog('info', `📋 ${metadata.current_step}`, activeSyncId)
-        }
-        
-        if (metadata.patients_processed && metadata.patients_found) {
-          const percentage = Math.round((metadata.patients_processed / metadata.patients_found) * 100)
-          addSyncLog('info', `💾 Storing patients: ${metadata.patients_processed}/${metadata.patients_found} (${percentage}%)`, activeSyncId)
-        }
-        
-        if (metadata.patients_found) {
-          addSyncLog('info', `👥 Found ${metadata.patients_found} patients to process`, activeSyncId)
-        }
-      } catch (error) {
-        // Metadata parsing failed, continue with basic progress
-      }
-    }
-  }, [syncLogsData, activeSyncId, addSyncLog])
+  // Query for current sync progress (only when there's an active sync)
+  const { data: progressData, refetch: refetchProgress } = useQuery({
+    queryKey: ['sync-progress', activeSyncId, orgId],
+    queryFn: getSyncProgress,
+    enabled: !!activeSyncId && !!orgId && activeSyncId !== 'monitoring',
+    refetchInterval: activeSyncId && activeSyncId !== 'monitoring' ? 2000 : false,
+  })
 
   // Enhanced refresh function
   const forceRefresh = useCallback(() => {
-    addSyncLog('info', 'Force refreshing sync data...')
+    addSyncLog('info', 'Force refreshing dashboard data...')
     
-    queryClient.removeQueries({ queryKey: ['sync-dashboard'] })
-    queryClient.removeQueries({ queryKey: ['sync-history'] })
-    queryClient.removeQueries({ queryKey: ['cliniko-status'] })
-    queryClient.removeQueries({ queryKey: ['patients-summary'] })
-    queryClient.removeQueries({ queryKey: ['sync-logs'] })
+    queryClient.removeQueries({ queryKey: ['dashboard-unified'] })
     
-    Promise.all([refetchDashboard(), refetchHistory(), refetchStatus(), refetchPatients()])
+    refetchDashboard()
       .then(() => {
-        addSyncLog('success', 'Sync data refresh completed')
+        addSyncLog('success', 'Dashboard data refresh completed')
       })
       .catch((error) => {
-        addSyncLog('error', `Sync data refresh failed: ${error}`)
+        addSyncLog('error', `Dashboard data refresh failed: ${error}`)
       })
-  }, [queryClient, refetchDashboard, refetchHistory, refetchStatus, refetchPatients, addSyncLog])
+  }, [queryClient, refetchDashboard, addSyncLog])
 
-  // Clear stale activeSyncId when backend shows no current sync
+  // Clear stale activeSyncId when no running syncs are found
   useEffect(() => {
-    if (dashboardData && !dashboardData.current_sync && activeSyncId) {
-      addSyncLog('info', 'Clearing stale sync state', activeSyncId)
-      setActiveSyncId(null)
+    if (dashboardData && recentActivity.length > 0) {
+      const hasRunningSyncs = recentActivity.some(activity => activity.status === 'running')
+      if (!hasRunningSyncs && activeSyncId) {
+        addSyncLog('info', 'Clearing stale sync state - no running syncs found', activeSyncId)
+        setActiveSyncId(null)
+      }
     }
-  }, [dashboardData, activeSyncId, addSyncLog])
-
-  // Also clear when sync logs show completion
-  useEffect(() => {
-    if (activeSyncId && syncLogsData?.logs?.[0]?.status === 'completed') {
-      addSyncLog('info', 'Sync completed successfully', activeSyncId)
-      setActiveSyncId(null)
-    }
-  }, [syncLogsData, activeSyncId, addSyncLog])
+  }, [dashboardData, recentActivity, activeSyncId, addSyncLog])
 
   // Backend team's recommended sync approach - ALL patients sync
   const startSyncMutation = useMutation({
     mutationFn: async ({ organizationId }: { organizationId: string }) => {
-      addSyncLog('info', 'Starting ALL patients sync (backend team recommendation)...')
+      addSyncLog('info', 'Starting ALL patients sync (using new simplified endpoint)...')
       const authenticatedAPI = new RoutiqAPI(organizationId)
-      return await authenticatedAPI.startAllPatientsSync(organizationId)
+      // Use the new simplified sync endpoint
+      return await authenticatedAPI.triggerClinikoSync(organizationId)
     },
-    onSuccess: (data: { success: boolean; message: string }) => {
-      addSyncLog('success', `✅ ${data.message}`)
-      addSyncLog('info', '🔄 Real-time monitoring started (polling every 2 seconds)')
+    onSuccess: (data) => {
+      const response = data as any;
+      addSyncLog('success', `✅ ${response.message || 'Sync started successfully'}`)
+      addSyncLog('info', '🔄 Real-time monitoring started')
       setActiveSyncId('monitoring') // Use monitoring state instead of actual sync_id
       
-      // Start the backend team's recommended monitoring pattern
+      // Start monitoring for completion
       startSyncMonitoring()
     },
     onError: (error: Error) => {
@@ -322,16 +268,9 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     // Add a small delay to ensure backend has processed the completion
     setTimeout(() => {
       refetchDashboard()
-      refetchHistory()
-      refetchStatus()
-      refetchPatients()
-      queryClient.invalidateQueries({ queryKey: ['sync-dashboard'] })
-      queryClient.invalidateQueries({ queryKey: ['sync-history'] })
-      queryClient.invalidateQueries({ queryKey: ['patients-summary'] })
-      queryClient.invalidateQueries({ queryKey: ['cliniko-status'] })
-      queryClient.invalidateQueries({ queryKey: ['sync-logs'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-unified'] })
     }, 2000)
-  }, [eventSource, refetchDashboard, refetchHistory, refetchStatus, refetchPatients, queryClient])
+  }, [eventSource, refetchDashboard, queryClient])
 
   // Cleanup on unmount or sync completion
   useEffect(() => {
@@ -399,82 +338,15 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
     checkServiceConfig()
   }, [orgId])
 
-  // Check sync availability from dashboard data (Railway backend) with fallbacks
-  const syncAvailable = dashboardData?.sync_available || false
-  const clinikoConfigured = syncAvailable || (clinikoStatus?.total_patients !== undefined)
-  const clinikoConnected = syncAvailable || (clinikoStatus?.active_patients !== undefined)
-  
-  // Enhanced patient stats with better fallback logic and debug logging
-  const effectivePatientStats = useMemo(() => {
-    // Priority 1: Use comprehensive dashboard data if available
-    if (dashboardData?.patient_stats) {
-      console.log('📊 Using comprehensive dashboard data:', dashboardData.patient_stats);
-      return dashboardData.patient_stats;
-    }
-    
-    // Priority 2: Combine clinikoStatus (for totals) with patientsSummary (for appointment estimates)
-    if (clinikoStatus && patientsSummary) {
-      console.log('📈 Combining cliniko status + patients summary:', { clinikoStatus, patientsSummary });
-      
-      // Use active patients count from clinikoStatus (which should be 36)
-      const activePatients = clinikoStatus.active_patients || 0;
-      
-      return {
-        total_patients: clinikoStatus.total_patients || 0, // 648 from cliniko
-        active_patients: activePatients, // 36 from cliniko  
-        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments || 0, // Use actual API data
-        patients_with_recent: patientsSummary.patients_with_recent_appointments || 0, // Use actual API data
-        last_sync_time: clinikoStatus.last_sync_time || patientsSummary.last_sync_date || null
-      };
-    }
-    
-    // Priority 3: Use patients summary alone if available
-    if (patientsSummary) {
-      console.log('📈 Using patients summary data only:', patientsSummary);
-      
-      const totalActive = patientsSummary.total_active_patients || 0;
-      
-      return {
-        total_patients: totalActive,
-        active_patients: totalActive,
-        patients_with_upcoming: patientsSummary.patients_with_upcoming_appointments || 0, // Use actual API data
-        patients_with_recent: patientsSummary.patients_with_recent_appointments || 0, // Use actual API data
-        last_sync_time: patientsSummary.last_sync_date || null
-      };
-    }
-    
-    // Priority 4: Use basic cliniko status (no estimates)
-    if (clinikoStatus) {
-      console.log('🔄 Using basic cliniko status (no appointment data available):', clinikoStatus);
-      return {
-        total_patients: clinikoStatus.total_patients || 0,
-        active_patients: clinikoStatus.active_patients || 0,
-        patients_with_upcoming: 0, // No data available
-        patients_with_recent: 0, // No data available
-        last_sync_time: clinikoStatus.last_sync_time || null
-      };
-    }
-    
-    // Fallback: Default empty state
-    console.log('⚠️ No data available, using empty state');
-    return {
-      total_patients: 0,
-      active_patients: 0,
-      patients_with_upcoming: 0,
-      patients_with_recent: 0,
-      last_sync_time: null
-    };
-  }, [dashboardData, patientsSummary, clinikoStatus]);
-
   // Debug logging when data changes
   useEffect(() => {
-    if (clinikoStatus) {
-      console.log('✅ Cliniko status updated:', clinikoStatus);
+    if (summary) {
+      console.log('✅ Dashboard data updated:', summary);
     }
     if (dashboardError) {
       console.log('❌ Dashboard endpoint error:', dashboardError);
     }
-  }, [clinikoStatus, dashboardError]);
+  }, [summary, dashboardError]);
 
   if (!orgId) {
     return (
