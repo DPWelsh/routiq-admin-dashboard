@@ -91,7 +91,7 @@ export function useClinikoSync(organizationId: string = ORGANIZATIONS.SURF_REHAB
 
   // Trigger Cliniko sync mutation
   const triggerSync = useMutation({
-    mutationFn: () => api.triggerClinikoSync(organizationId),
+    mutationFn: ({ forceFull = false }: { forceFull?: boolean } = {}) => api.triggerClinikoSync(organizationId, forceFull),
     onSuccess: (data: SyncTriggerResponse) => {
       console.log('Cliniko sync triggered:', data);
       // Immediately refresh related data
@@ -106,25 +106,21 @@ export function useClinikoSync(organizationId: string = ORGANIZATIONS.SURF_REHAB
     }
   });
 
+  // Convenience methods for different sync types
+  const startRegularSync = () => triggerSync.mutate({ forceFull: false });
+  const startForceSync = () => triggerSync.mutate({ forceFull: true });
+
   return {
-    // Status data
-    syncStatus: clinikoStatus.data,
-    isSyncing: triggerSync.isPending, // Cliniko doesn't have real-time sync status yet
-    lastSync: clinikoStatus.data?.last_sync_time,
-    totalContacts: clinikoStatus.data?.total_contacts || 0,
-    activePatients: clinikoStatus.data?.active_patients || 0,
-    upcomingAppointments: clinikoStatus.data?.upcoming_appointments || 0,
-    
-    // Loading states
+    clinikoStatus: clinikoStatus.data,
     isLoadingStatus: clinikoStatus.isLoading,
+    isErrorStatus: clinikoStatus.isError,
+    errorStatus: clinikoStatus.error,
+    triggerSync: triggerSync.mutate,
+    startRegularSync,
+    startForceSync,
     isTriggering: triggerSync.isPending,
-    
-    // Actions
-    triggerSync: () => triggerSync.mutate(),
-    
-    // Errors
-    statusError: clinikoStatus.error,
-    triggerError: triggerSync.error
+    triggerError: triggerSync.error,
+    triggerSuccess: triggerSync.isSuccess,
   };
 }
 
@@ -346,15 +342,16 @@ export function useDashboardData(organizationId: string = ORGANIZATIONS.SURF_REH
     
     // Cliniko sync information
     clinikoSync: {
-      status: clinikoSyncData.syncStatus,
-      isSyncing: clinikoSyncData.isSyncing,
-      lastSync: clinikoSyncData.lastSync,
+      status: clinikoSyncData.clinikoStatus,
+      isSyncing: clinikoSyncData.isLoadingStatus,
+      isErrorStatus: clinikoSyncData.isErrorStatus,
+      errorStatus: clinikoSyncData.errorStatus,
       triggerSync: clinikoSyncData.triggerSync,
+      startRegularSync: clinikoSyncData.startRegularSync,
+      startForceSync: clinikoSyncData.startForceSync,
       isTriggering: clinikoSyncData.isTriggering,
-      totalContacts: clinikoSyncData.totalContacts,
-      activePatients: clinikoSyncData.activePatients,
-      upcomingAppointments: clinikoSyncData.upcomingAppointments,
-      error: clinikoSyncData.statusError
+      triggerError: clinikoSyncData.triggerError,
+      triggerSuccess: clinikoSyncData.triggerSuccess,
     },
     
     // Legacy sync (for backward compatibility)
@@ -391,6 +388,6 @@ export function useDashboardData(organizationId: string = ORGANIZATIONS.SURF_REH
     isLoading: clerkSyncData.isLoadingStatus || clinikoSyncData.isLoadingStatus || databaseData.isLoading || healthData.isLoading,
     
     // Any errors
-    hasErrors: !!(clerkSyncData.statusError || clinikoSyncData.statusError || databaseData.error || healthData.error)
+    hasErrors: !!(clerkSyncData.statusError || clinikoSyncData.errorStatus || databaseData.error || healthData.error)
   };
 } 

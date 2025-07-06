@@ -76,6 +76,17 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_key
 CLERK_SECRET_KEY=your_clerk_secret
 ```
 
+### 2.1. Authentication Setup
+This project uses **Clerk** for authentication and multi-organization support:
+
+- **[📚 Clerk Integration Guide](./CLERK_INTEGRATION_GUIDE.md)** - Complete setup, architecture, and examples
+- **[⚡ Clerk Quick Reference](./CLERK_QUICK_REFERENCE.md)** - Common patterns and code snippets
+
+**Quick Clerk Setup:**
+1. Enable Organizations in your Clerk dashboard
+2. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` 
+3. Follow the integration guide for detailed configuration
+
 ### 3. Development Server
 ```bash
 npm run dev
@@ -179,6 +190,12 @@ const { data: summary, isLoading } = useDatabaseSummary();
 
 ## 📚 Documentation
 
+### **Frontend Development**
+- **[🔐 Clerk Integration Guide](./CLERK_INTEGRATION_GUIDE.md)** - Complete authentication & multi-organization setup
+- **[⚡ Clerk Quick Reference](./CLERK_QUICK_REFERENCE.md)** - Common patterns and code snippets  
+- **[📊 Data Flow Architecture](./DATA_FLOW_ARCHITECTURE.md)** - Complete backend-to-frontend data flow guide
+
+### **Backend References**
 - **Backend API Guide:** `../docs/FRONTEND_DEVELOPER_GUIDE.md`
 - **API Endpoints Reference:** `../CLINIKO_API_ENDPOINTS.md`
 - **Backend Implementation:** `../CLINIKO_ACTIVE_PATIENTS_TASKS.md`

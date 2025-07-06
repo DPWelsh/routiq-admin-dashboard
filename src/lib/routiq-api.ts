@@ -388,14 +388,15 @@ export class RoutiqAPI {
    * Trigger Cliniko patient sync for organization
    * This will sync ALL patients from Cliniko (not just active ones)
    */
-  async triggerClinikoSync(organizationId: string): Promise<{
+  async triggerClinikoSync(organizationId: string, forceFull: boolean = false): Promise<{
     success: boolean;
     message: string;
     organization_id: string;
     result: object;
     timestamp: string;
   }> {
-    return this.request(`/api/v1/cliniko/sync/${organizationId}`, {
+    const url = `/api/v1/cliniko/sync/${organizationId}${forceFull ? '?force_full=true' : ''}`;
+    return this.request(url, {
       method: 'POST'
     });
   }

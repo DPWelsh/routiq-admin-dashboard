@@ -127,12 +127,14 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
 
   // Start sync mutation - now uses the new consolidated endpoint
   const startSyncMutation = useMutation({
-    mutationFn: async ({ organizationId }: { organizationId: string }) => {
-      addSyncLog('info', 'Starting sync using new consolidated endpoint...')
+    mutationFn: async ({ organizationId, forceFull = false }: { organizationId: string; forceFull?: boolean }) => {
+      const syncType = forceFull ? 'force sync' : 'regular sync'
+      addSyncLog('info', `Starting ${syncType} using consolidated endpoint...`)
       const authenticatedAPI = new RoutiqAPI(organizationId)
       
-      // Use the new consolidated sync endpoint
-      const response = await fetch(`https://routiq-backend-prod.up.railway.app/api/v1/cliniko/sync/${organizationId}`, {
+      // Use the new consolidated sync endpoint with force_full parameter
+      const url = `https://routiq-backend-prod.up.railway.app/api/v1/cliniko/sync/${organizationId}${forceFull ? '?force_full=true' : ''}`
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,23 +251,42 @@ export function SyncDashboard({ organizationId: propOrgId }: SyncDashboardProps)
             Refresh
           </Button>
           {!activeSyncId ? (
-            <Button
-              onClick={() => selectedOrgId && startSyncMutation.mutate({ organizationId: selectedOrgId })}
-              disabled={startSyncMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {startSyncMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Start Sync
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => selectedOrgId && startSyncMutation.mutate({ organizationId: selectedOrgId, forceFull: false })}
+                disabled={startSyncMutation.isPending}
+                variant="outline"
+              >
+                {startSyncMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    Regular Sync
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => selectedOrgId && startSyncMutation.mutate({ organizationId: selectedOrgId, forceFull: true })}
+                disabled={startSyncMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {startSyncMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Force Sync
+                  </>
+                )}
+              </Button>
+            </div>
           ) : (
             <Badge variant="secondary" className="px-3 py-1">
               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
